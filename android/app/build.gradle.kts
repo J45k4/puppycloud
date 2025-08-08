@@ -49,6 +49,17 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    // Compose runtime saveable for rememberSaveable
+    implementation("androidx.compose.runtime:runtime-saveable")
+
+    // CameraX
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
+
+    // ML Kit Barcode Scanning
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
