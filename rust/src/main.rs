@@ -10,10 +10,11 @@ use axum::{
     http::StatusCode,
     routing::{get, post},
     Json, Router,
+    response::Html,
 };
 use bytes::Bytes;
 use clap::Parser;
-use rusqlite::Connection;
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs,
@@ -361,10 +362,12 @@ async fn main() -> Result<()> {
     };
 
     let app = Router::new()
+        .route("/", get(index_html))
         .route("/health", get(|| async { "ok" }))
         .route("/upload", post(upload_file))
         .route("/chunks/:id", get(get_chunk))
         .route("/p2p/info", get(get_p2p_info))
+        .route("/p2p/peers", get(get_p2p_peers))
         .route("/p2p/dial", post(post_p2p_dial))
         .with_state(state);
 
@@ -395,6 +398,41 @@ async fn get_p2p_info(State(state): State<AppState>) -> Result<Json<P2pInfo>, (S
     Ok(Json(P2pInfo { peer_id: state.p2p_peer_id.clone(), addrs }))
 }
 
+#[derive(Serialize)]
+struct PeerSummary { peer_id: String, last_addr: Option<String>, last_seen: i64 }
+
+async fn get_p2p_peers(State(state): State<AppState>) -> Result<Json<Vec<PeerSummary>>, (StatusCode, String)> {
+    let db = state.db.clone();
+    let peers: Vec<PeerSummary> = spawn_blocking(move || -> Result<Vec<PeerSummary>, rusqlite::Error> {
+        let conn = db.lock().unwrap();
+        let mut out = Vec::new();
+        let mut stmt = conn.prepare("SELECT peer_id, last_addr, last_seen FROM peers ORDER BY last_seen DESC LIMIT ?1")?;
+        let rows = stmt.query_map(params![100i64], |row| {
+            let peer_id: String = row.get(0)?;
+            let last_addr: Option<String> = row.get(1)?;
+            let last_seen: i64 = row.get(2)?;
+            Ok(PeerSummary { peer_id, last_addr, last_seen })
+        })?;
+        for r in rows { out.push(r?); }
+        Ok(out)
+    })
+    .await
+    .map_err(intern)?
+    .map_err(intern)?;
+    Ok(Json(peers))
+}
+
+async fn index_html() -> Result<Html<String>, (StatusCode, String)> {
+    let path = std::env::current_dir()
+        .map_err(intern)?
+        .join("static")
+        .join("index.html");
+    match tokio::fs::read_to_string(path).await {
+        Ok(s) => Ok(Html(s)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
 #[derive(Deserialize)]
 struct DialReq { addr: String }
 
@@ -402,7 +440,10 @@ async fn post_p2p_dial(
     State(state): State<AppState>,
     Json(req): Json<DialReq>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state.p2p_dial_tx.send(req.addr.clone()).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    state.p2p_dial_tx
+        .send(req.addr.clone())
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(serde_json::json!({ "status": "dialing", "addr": req.addr })))
 }
 
