@@ -9,48 +9,38 @@ use anyhow::Result;
 use axum::{
     extract::{Multipart, Path as AxPath, State},
     http::StatusCode,
+    response::Html,
     routing::{get, post},
     Json, Router,
-    response::Html,
 };
+use base64::Engine;
 use bytes::Bytes;
 use clap::Parser;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use tokio::{
-    fs,
-    io::AsyncWriteExt,
-    net::TcpListener,
-    task::spawn_blocking,
-    sync::mpsc,
-};
+use tokio::{fs, io::AsyncWriteExt, net::TcpListener, sync::mpsc, task::spawn_blocking};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 mod db;
 use db::{
-    init_schema,
-    open_db,
-    upsert_manifest,
-    upsert_peer,
-    upsert_peer_addr,
-    set_local_key,
-    set_config,
-    get_recent_peer_addrs,
+    get_recent_peer_addrs, init_schema, open_db, set_config, set_local_key, upsert_manifest,
+    upsert_peer, upsert_peer_addr,
 };
 
 // P2P
 use futures::StreamExt;
 use libp2p::{
-    identity,
-    mdns,
-    ping,
-    swarm::{NetworkBehaviour, SwarmEvent},
-    Multiaddr, Swarm,
     // added imports
     core::ConnectedPoint,
+    identity,
+    mdns,
     multiaddr::Protocol,
+    ping,
+    swarm::{NetworkBehaviour, SwarmEvent},
+    Multiaddr,
     PeerId,
+    Swarm,
 };
 
 #[derive(Parser, Debug)]
@@ -85,11 +75,36 @@ struct AppState {
     sessions: Arc<Mutex<HashMap<String, String>>>, // session_id -> username
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct ChunkRef {
+    id: String,
+    size: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct FileManifest {
+    total_size: u64,
+    chunks: Vec<ChunkRef>,
+    mime: Option<String>,
+    created_ts: time::OffsetDateTime,
+}
+
+fn chunk_id(data: &[u8]) -> String {
+    blake3::hash(data).to_hex().to_string()
+}
+
+fn chunk_path(root: &Path, id: &str) -> PathBuf {
+    root.join(&id[0..2]).join(&id[2..4]).join(id)
+}
+
 // --- Auth extractor & handlers ---
+use argon2::{
+    password_hash::{PasswordHasher, SaltString},
+    Argon2,
+};
 use axum::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::{header, request::Parts};
-use argon2::{Argon2, password_hash::{PasswordHasher, SaltString}};
 use rand_core::{OsRng, RngCore};
 
 struct RequireAuth(pub String); // username
@@ -98,12 +113,22 @@ struct RequireAuth(pub String); // username
 impl FromRequestParts<AppState> for RequireAuth {
     type Rejection = (StatusCode, String);
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
-        let cookies = parts.headers.get(header::COOKIE).and_then(|v| v.to_str().ok()).unwrap_or("");
-        let sid = cookies.split(';').find_map(|c| {
-            let c = c.trim();
-            if let Some(rest) = c.strip_prefix("sid=") { Some(rest.to_string()) } else { None }
-        }).ok_or((StatusCode::UNAUTHORIZED, "no session".into()))?;
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let cookies = parts
+            .headers
+            .get(header::COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        let sid = cookies
+            .split(';')
+            .find_map(|c| {
+                let c = c.trim();
+                c.strip_prefix("sid=").map(|rest| rest.to_string())
+            })
+            .ok_or((StatusCode::UNAUTHORIZED, "no session".into()))?;
         let sessions = state.sessions.lock().unwrap();
         if let Some(user) = sessions.get(&sid) {
             Ok(RequireAuth(user.clone()))
@@ -114,22 +139,41 @@ impl FromRequestParts<AppState> for RequireAuth {
 }
 
 #[derive(Deserialize)]
-struct SetPasswordReq { username: String, password: String, expires_ts: Option<i64> }
+struct SetPasswordReq {
+    username: String,
+    password: String,
+    expires_ts: Option<i64>,
+}
 
-async fn post_set_password(State(state): State<AppState>, Json(req): Json<SetPasswordReq>) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+async fn post_set_password(
+    State(state): State<AppState>,
+    Json(req): Json<SetPasswordReq>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     if req.username.trim().is_empty() || req.password.len() < 8 {
-        return Err((StatusCode::BAD_REQUEST, "username and 8+ char password required".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "username and 8+ char password required".into(),
+        ));
     }
     let salt = SaltString::generate(&mut OsRng);
     let argon = Argon2::default();
-    let hash = argon.hash_password(req.password.as_bytes(), &salt).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let hash = argon
+        .hash_password(req.password.as_bytes(), &salt)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let created_ts = time::OffsetDateTime::now_utc().unix_timestamp();
     let db = state.db.clone();
     let salt_bytes = salt.as_str().as_bytes().to_vec();
     let hash_bytes = hash.hash.unwrap().as_bytes().to_vec();
     spawn_blocking(move || -> Result<(), rusqlite::Error> {
         let conn = db.lock().unwrap();
-        db::upsert_user(&conn, &req.username, &hash_bytes, &salt_bytes, created_ts, req.expires_ts)?;
+        db::upsert_user(
+            &conn,
+            &req.username,
+            &hash_bytes,
+            &salt_bytes,
+            created_ts,
+            req.expires_ts,
+        )?;
         Ok(())
     })
     .await
@@ -139,44 +183,91 @@ async fn post_set_password(State(state): State<AppState>, Json(req): Json<SetPas
 }
 
 #[derive(Deserialize)]
-struct LoginReq { username: String, password: String }
+struct LoginReq {
+    username: String,
+    password: String,
+}
 
-async fn post_login(State(state): State<AppState>, Json(req): Json<LoginReq>) -> Result<(StatusCode, [(header::HeaderName, String); 1], Json<serde_json::Value>), (StatusCode, String)> {
+async fn post_login(
+    State(state): State<AppState>,
+    Json(req): Json<LoginReq>,
+) -> Result<
+    (
+        StatusCode,
+        [(header::HeaderName, String); 1],
+        Json<serde_json::Value>,
+    ),
+    (StatusCode, String),
+> {
     let db = state.db.clone();
+    let username = req.username.clone();
     let user = spawn_blocking(move || -> Result<Option<db::UserRow>, rusqlite::Error> {
         let conn = db.lock().unwrap();
-        db::get_user(&conn, &req.username)
+        db::get_user(&conn, &username)
     })
     .await
     .map_err(intern)?
     .map_err(intern)?;
 
-    let Some(user) = user else { return Err((StatusCode::UNAUTHORIZED, "invalid credentials".into())); };
-    if let Some(exp) = user.expires_ts { if time::OffsetDateTime::now_utc().unix_timestamp() > exp { return Err((StatusCode::UNAUTHORIZED, "password expired".into())); } }
+    let Some(user) = user else {
+        return Err((StatusCode::UNAUTHORIZED, "invalid credentials".into()));
+    };
+    if let Some(exp) = user.expires_ts {
+        if time::OffsetDateTime::now_utc().unix_timestamp() > exp {
+            return Err((StatusCode::UNAUTHORIZED, "password expired".into()));
+        }
+    }
 
     let argon = Argon2::default();
-    let salt_b64 = std::str::from_utf8(&user.salt).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let salt = SaltString::from_b64(salt_b64).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let calc = argon.hash_password(req.password.as_bytes(), &salt).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let calc_bytes = calc.hash.unwrap().as_bytes();
+    let salt_b64 = std::str::from_utf8(&user.salt)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let salt = SaltString::from_b64(salt_b64)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let calc = argon
+        .hash_password(req.password.as_bytes(), &salt)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let calc_hash = calc.hash.unwrap();
+    let calc_bytes = calc_hash.as_bytes();
     if calc_bytes != user.pwd_hash.as_slice() {
         return Err((StatusCode::UNAUTHORIZED, "invalid credentials".into()));
     }
 
     let mut sid_bytes = [0u8; 32];
     OsRng.fill_bytes(&mut sid_bytes);
-    let sid = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&sid_bytes);
-    state.sessions.lock().unwrap().insert(sid.clone(), req.username);
+    let sid = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(sid_bytes);
+    state
+        .sessions
+        .lock()
+        .unwrap()
+        .insert(sid.clone(), req.username.clone());
     let cookie = format!("sid={}; Path=/; HttpOnly; SameSite=Lax", sid);
 
-    Ok((StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({"ok": true}))))
+    Ok((
+        StatusCode::OK,
+        [(header::SET_COOKIE, cookie)],
+        Json(serde_json::json!({"ok": true})),
+    ))
 }
 
-async fn post_logout(State(state): State<AppState>, RequireAuth(user): RequireAuth) -> Result<(StatusCode, [(header::HeaderName, String); 1], Json<serde_json::Value>), (StatusCode, String)> {
+async fn post_logout(
+    State(state): State<AppState>,
+    RequireAuth(user): RequireAuth,
+) -> Result<
+    (
+        StatusCode,
+        [(header::HeaderName, String); 1],
+        Json<serde_json::Value>,
+    ),
+    (StatusCode, String),
+> {
     let cookie = "sid=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax".to_string();
     let mut sessions = state.sessions.lock().unwrap();
     sessions.retain(|_, v| v != &user);
-    Ok((StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({"ok": true}))))
+    Ok((
+        StatusCode::OK,
+        [(header::SET_COOKIE, cookie)],
+        Json(serde_json::json!({"ok": true})),
+    ))
 }
 
 // --- P2P setup ---
@@ -186,7 +277,10 @@ struct PcBehaviour {
     mdns: mdns::tokio::Behaviour,
 }
 
-async fn spawn_p2p(addrs_out: Arc<Mutex<Vec<String>>>, db: Arc<Mutex<Connection>>) -> Result<(String, mpsc::Sender<String>)> {
+async fn spawn_p2p(
+    addrs_out: Arc<Mutex<Vec<String>>>,
+    db: Arc<Mutex<Connection>>,
+) -> Result<(String, mpsc::Sender<String>)> {
     // Load or generate the local identity key from DB
     let maybe_key_bytes = spawn_blocking({
         let db = db.clone();
@@ -443,11 +537,25 @@ async fn main() -> Result<()> {
         .route("/auth/set_password", post(post_set_password))
         .route("/auth/login", post(post_login))
         .route("/auth/logout", post(post_logout))
-        .route("/upload", post(|state: State<AppState>, auth: RequireAuth, mp: Multipart| async move { upload_file(state, mp).await }))
+        .route(
+            "/upload",
+            post(
+                |state: State<AppState>, _auth: RequireAuth, mp: Multipart| async move {
+                    upload_file(state, mp).await
+                },
+            ),
+        )
         .route("/chunks/:id", get(get_chunk))
         .route("/p2p/info", get(get_p2p_info))
         .route("/p2p/peers", get(get_p2p_peers))
-        .route("/p2p/dial", post(|state: State<AppState>, auth: RequireAuth, Json(req): Json<DialReq>| async move { post_p2p_dial(state, Json(req)).await }))
+        .route(
+            "/p2p/dial",
+            post(
+                |state: State<AppState>, _auth: RequireAuth, Json(req): Json<DialReq>| async move {
+                    post_p2p_dial(state, Json(req)).await
+                },
+            ),
+        )
         .with_state(state);
 
     let addr: SocketAddr = cli.http_bind.parse()?;
@@ -456,7 +564,9 @@ async fn main() -> Result<()> {
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
             let fallback = SocketAddr::new(addr.ip(), 0);
             tracing::warn!("HTTP {addr} in use, falling back to {fallback}");
-            TcpListener::bind(fallback).await.map_err(anyhow::Error::from)?
+            TcpListener::bind(fallback)
+                .await
+                .map_err(anyhow::Error::from)?
         }
         Err(e) => return Err(e.into()),
     };
@@ -472,32 +582,52 @@ struct P2pInfo {
     addrs: Vec<String>,
 }
 
-async fn get_p2p_info(State(state): State<AppState>) -> Result<Json<P2pInfo>, (StatusCode, String)> {
+async fn get_p2p_info(
+    State(state): State<AppState>,
+) -> Result<Json<P2pInfo>, (StatusCode, String)> {
     let addrs = state.p2p_addrs.lock().unwrap().clone();
-    Ok(Json(P2pInfo { peer_id: state.p2p_peer_id.clone(), addrs }))
+    Ok(Json(P2pInfo {
+        peer_id: state.p2p_peer_id.clone(),
+        addrs,
+    }))
 }
 
 #[derive(Serialize)]
-struct PeerSummary { peer_id: String, last_addr: Option<String>, last_seen: i64 }
+struct PeerSummary {
+    peer_id: String,
+    last_addr: Option<String>,
+    last_seen: i64,
+}
 
-async fn get_p2p_peers(State(state): State<AppState>) -> Result<Json<Vec<PeerSummary>>, (StatusCode, String)> {
+async fn get_p2p_peers(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<PeerSummary>>, (StatusCode, String)> {
     let db = state.db.clone();
-    let peers: Vec<PeerSummary> = spawn_blocking(move || -> Result<Vec<PeerSummary>, rusqlite::Error> {
-        let conn = db.lock().unwrap();
-        let mut out = Vec::new();
-        let mut stmt = conn.prepare("SELECT peer_id, last_addr, last_seen FROM peers ORDER BY last_seen DESC LIMIT ?1")?;
-        let rows = stmt.query_map(params![100i64], |row| {
-            let peer_id: String = row.get(0)?;
-            let last_addr: Option<String> = row.get(1)?;
-            let last_seen: i64 = row.get(2)?;
-            Ok(PeerSummary { peer_id, last_addr, last_seen })
-        })?;
-        for r in rows { out.push(r?); }
-        Ok(out)
-    })
-    .await
-    .map_err(intern)?
-    .map_err(intern)?;
+    let peers: Vec<PeerSummary> =
+        spawn_blocking(move || -> Result<Vec<PeerSummary>, rusqlite::Error> {
+            let conn = db.lock().unwrap();
+            let mut out = Vec::new();
+            let mut stmt = conn.prepare(
+                "SELECT peer_id, last_addr, last_seen FROM peers ORDER BY last_seen DESC LIMIT ?1",
+            )?;
+            let rows = stmt.query_map(params![100i64], |row| {
+                let peer_id: String = row.get(0)?;
+                let last_addr: Option<String> = row.get(1)?;
+                let last_seen: i64 = row.get(2)?;
+                Ok(PeerSummary {
+                    peer_id,
+                    last_addr,
+                    last_seen,
+                })
+            })?;
+            for r in rows {
+                out.push(r?);
+            }
+            Ok(out)
+        })
+        .await
+        .map_err(intern)?
+        .map_err(intern)?;
     Ok(Json(peers))
 }
 
@@ -535,17 +665,22 @@ async fn gallery_html() -> Result<Html<String>, (StatusCode, String)> {
 }
 
 #[derive(Deserialize)]
-struct DialReq { addr: String }
+struct DialReq {
+    addr: String,
+}
 
 async fn post_p2p_dial(
     State(state): State<AppState>,
     Json(req): Json<DialReq>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state.p2p_dial_tx
+    state
+        .p2p_dial_tx
         .send(req.addr.clone())
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(serde_json::json!({ "status": "dialing", "addr": req.addr })))
+    Ok(Json(
+        serde_json::json!({ "status": "dialing", "addr": req.addr }),
+    ))
 }
 
 async fn upload_file(

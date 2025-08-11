@@ -61,13 +61,19 @@ pub fn upsert_peer(
     Ok(())
 }
 
-pub fn upsert_peer_addr(conn: &Connection, peer_id: &str, addr: &str, last_seen: i64) -> SqlResult<()> {
+pub fn upsert_peer_addr(
+    conn: &Connection,
+    peer_id: &str,
+    addr: &str,
+    last_seen: i64,
+) -> SqlResult<()> {
     let sql = "INSERT INTO peer_addrs (peer_id, addr, last_seen) VALUES (?1, ?2, ?3) \
                ON CONFLICT(peer_id, addr) DO UPDATE SET last_seen = excluded.last_seen";
     conn.execute(sql, params![peer_id, addr, last_seen])?;
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn get_config(conn: &Connection, key: &str) -> SqlResult<Option<String>> {
     let mut stmt = conn.prepare("SELECT value FROM config WHERE key = ?1")?;
     let mut rows = stmt.query(params![key])?;
@@ -98,7 +104,12 @@ pub fn get_local_key(conn: &Connection, name: &str) -> SqlResult<Option<Vec<u8>>
     }
 }
 
-pub fn set_local_key(conn: &Connection, name: &str, key_bytes: &[u8], created_ts: i64) -> SqlResult<()> {
+pub fn set_local_key(
+    conn: &Connection,
+    name: &str,
+    key_bytes: &[u8],
+    created_ts: i64,
+) -> SqlResult<()> {
     conn.execute(
         "INSERT INTO local_keys (name, key, created_ts) VALUES (?1, ?2, ?3)\n         ON CONFLICT(name) DO UPDATE SET key = excluded.key",
         params![name, key_bytes, created_ts],
@@ -125,9 +136,8 @@ pub fn get_recent_peer_addrs(
             out.push(r?);
         }
     } else {
-        let mut stmt = conn.prepare(
-            "SELECT peer_id, addr FROM peer_addrs ORDER BY last_seen DESC LIMIT ?1",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT peer_id, addr FROM peer_addrs ORDER BY last_seen DESC LIMIT ?1")?;
         let rows = stmt.query_map(params![limit as i64], |row| {
             let pid: String = row.get(0)?;
             let addr: String = row.get(1)?;
@@ -142,15 +152,19 @@ pub fn get_recent_peer_addrs(
 
 // --- Auth helpers ---
 pub struct UserRow {
+    #[allow(dead_code)]
     pub username: String,
     pub pwd_hash: Vec<u8>,
     pub salt: Vec<u8>,
+    #[allow(dead_code)]
     pub created_ts: i64,
     pub expires_ts: Option<i64>,
 }
 
 pub fn get_user(conn: &Connection, username: &str) -> SqlResult<Option<UserRow>> {
-    let mut stmt = conn.prepare("SELECT username, pwd_hash, salt, created_ts, expires_ts FROM users WHERE username = ?1")?;
+    let mut stmt = conn.prepare(
+        "SELECT username, pwd_hash, salt, created_ts, expires_ts FROM users WHERE username = ?1",
+    )?;
     let mut rows = stmt.query(params![username])?;
     if let Some(row) = rows.next()? {
         Ok(Some(UserRow {
@@ -180,7 +194,12 @@ pub fn upsert_user(
     Ok(())
 }
 
-pub fn set_user_expiry(conn: &Connection, username: &str, expires_ts: Option<i64>) -> SqlResult<()> {
+#[allow(dead_code)]
+pub fn set_user_expiry(
+    conn: &Connection,
+    username: &str,
+    expires_ts: Option<i64>,
+) -> SqlResult<()> {
     conn.execute(
         "UPDATE users SET expires_ts = ?2 WHERE username = ?1",
         params![username, expires_ts],
