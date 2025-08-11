@@ -65,10 +65,21 @@
     <h2>Connect to peer</h2>
     <div class="row">
       <input id="addr" type="text" placeholder="/ip4/127.0.0.1/tcp/4001/p2p/12D3KooW…" />
+      <input id="pwd" type="text" placeholder="Password" style="max-width:120px" />
       <button id="dialBtn" onclick="dial()">Dial</button>
       <button id="scanBtn" onclick="openQRScanner()">Scan QR</button>
     </div>
     <div id="status" class="muted" style="margin-top:10px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Create invite QR</h2>
+    <div class="row">
+      <input id="invitePwd" type="text" placeholder="Password" />
+      <input id="inviteExp" type="number" placeholder="Minutes" style="max-width:80px" />
+      <button onclick="createInvite()">Generate</button>
+    </div>
+    <canvas id="inviteQr" style="margin-top:10px"></canvas>
   </section>
 </main>
 <!-- QR Scanner Modal -->
@@ -86,6 +97,8 @@
 
 <!-- jsQR library for decoding QR codes -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<!-- QRCode library for generating QR codes -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
 <script>
 async function loadInfo(){
@@ -117,10 +130,11 @@ async function dial(){
   const btn = document.getElementById('dialBtn');
   const status = document.getElementById('status');
   const addr = document.getElementById('addr').value.trim();
+  const pwd = document.getElementById('pwd').value.trim();
   if(!addr){ status.textContent = 'Enter a multiaddr'; return; }
   btn.disabled = true; status.textContent = 'Dialing…';
   try{
-    const r = await fetch('/p2p/dial', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ addr })});
+    const r = await fetch('/p2p/dial', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ addr, password: pwd })});
     const j = await r.json();
     status.textContent = 'Dialed: ' + j.addr;
   }catch(e){ status.textContent = 'Error: ' + e; }
@@ -178,10 +192,19 @@ function scanLoop(){
   qrRaf = requestAnimationFrame(scanLoop);
 }
 function handleQRResult(text){
-  const addrInput = document.getElementById('addr');
-  addrInput.value = text;
+  try{
+    const obj = JSON.parse(text);
+    if(obj.expires && Date.now() > obj.expires * 1000){
+      alert('Invite expired');
+      closeQRScanner();
+      return;
+    }
+    document.getElementById('addr').value = obj.addr || '';
+    document.getElementById('pwd').value = obj.password || '';
+  }catch{
+    document.getElementById('addr').value = text;
+  }
   closeQRScanner();
-  // auto-dial after successful scan
   if(typeof dial === 'function'){
     dial();
   }
@@ -196,6 +219,17 @@ function closeQRScanner(){
 }
 window.addEventListener('load', ()=>{ loadInfo(); loadPeers(); });
 window.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeQRScanner(); });
+
+async function createInvite(){
+  const pwd = document.getElementById('invitePwd').value.trim();
+  const mins = parseInt(document.getElementById('inviteExp').value, 10);
+  if(!pwd || isNaN(mins)) return;
+  const expires = Math.floor(Date.now()/1000) + mins * 60;
+  const r = await fetch('/p2p/invite', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd, expires })});
+  const j = await r.json();
+  const canvas = document.getElementById('inviteQr');
+  QRCode.toCanvas(canvas, JSON.stringify(j), { width: 200 });
+}
 </script>
 </body>
 </html>
