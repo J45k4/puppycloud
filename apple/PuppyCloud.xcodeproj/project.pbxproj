@@ -393,6 +393,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				SUPPORTS_MACCATALYST = YES;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is needed to scan QR codes.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Photo library write access is needed to save exports.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Photos access is needed to show your gallery.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -430,6 +435,11 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				SUPPORTS_MACCATALYST = YES;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access is needed to scan QR codes.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Photo library write access is needed to save exports.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Photos access is needed to show your gallery.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
