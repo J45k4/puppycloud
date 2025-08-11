@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PuppyCloud • Gallery</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
+    header { padding: 16px 20px; border-bottom: 1px solid #ddd; position: sticky; top: 0; background: color-mix(in oklab, Canvas 96%, transparent); backdrop-filter: blur(6px); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    header nav { display:flex; gap:14px; }
+    header nav a { color: inherit; text-decoration: none; padding: 8px 10px; border-radius: 8px; }
+    header nav a:hover { background: color-mix(in oklab, Canvas 92%, transparent); }
+    header h1 a { color: inherit; text-decoration: none; border-radius: 8px; padding: 4px 6px; display: inline-block; }
+    header h1 a:hover { background: color-mix(in oklab, Canvas 92%, transparent); }
+    main { padding: 20px; max-width: 900px; margin: 0 auto; }
+    h1 { margin: 0; font-size: 1.4rem; }
+    section { margin: 20px 0; padding: 16px; border: 1px solid #e0e0e0; border-radius: 12px; }
+    .muted { color: #666; font-size: .92rem; }
+    .card { background: color-mix(in oklab, Canvas 98%, transparent); }
+  </style>
+</head>
+<body>
+<header>
+  <h1><a href="/">PuppyCloud</a></h1>
+  <nav aria-label="Primary">
+    <a href="/peers">Peers</a>
+    <a href="/gallery" aria-current="page">Gallery</a>
+  </nav>
+</header>
+<main>
+  <section class="card">
+    <h2>Gallery</h2>
+    <div class="muted">Nothing here yet. Add items in a future update.</div>
+  </section>
+</main>
+</body>
+</html>

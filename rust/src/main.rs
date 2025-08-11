@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -33,7 +34,6 @@ use db::{
     upsert_manifest,
     upsert_peer,
     upsert_peer_addr,
-    get_local_key,
     set_local_key,
     set_config,
     get_recent_peer_addrs,
@@ -81,30 +81,102 @@ struct AppState {
     p2p_peer_id: String,
     p2p_addrs: Arc<Mutex<Vec<String>>>,
     p2p_dial_tx: mpsc::Sender<String>,
+    // auth
+    sessions: Arc<Mutex<HashMap<String, String>>>, // session_id -> username
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct FileManifest {
-    total_size: u64,
-    chunks: Vec<ChunkRef>,
-    mime: Option<String>,
-    created_ts: time::OffsetDateTime,
+// --- Auth extractor & handlers ---
+use axum::async_trait;
+use axum::extract::FromRequestParts;
+use axum::http::{header, request::Parts};
+use argon2::{Argon2, password_hash::{PasswordHasher, SaltString}};
+use rand_core::{OsRng, RngCore};
+
+struct RequireAuth(pub String); // username
+
+#[async_trait]
+impl FromRequestParts<AppState> for RequireAuth {
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let cookies = parts.headers.get(header::COOKIE).and_then(|v| v.to_str().ok()).unwrap_or("");
+        let sid = cookies.split(';').find_map(|c| {
+            let c = c.trim();
+            if let Some(rest) = c.strip_prefix("sid=") { Some(rest.to_string()) } else { None }
+        }).ok_or((StatusCode::UNAUTHORIZED, "no session".into()))?;
+        let sessions = state.sessions.lock().unwrap();
+        if let Some(user) = sessions.get(&sid) {
+            Ok(RequireAuth(user.clone()))
+        } else {
+            Err((StatusCode::UNAUTHORIZED, "invalid session".into()))
+        }
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ChunkRef {
-    id: String,
-    size: u32,
+#[derive(Deserialize)]
+struct SetPasswordReq { username: String, password: String, expires_ts: Option<i64> }
+
+async fn post_set_password(State(state): State<AppState>, Json(req): Json<SetPasswordReq>) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if req.username.trim().is_empty() || req.password.len() < 8 {
+        return Err((StatusCode::BAD_REQUEST, "username and 8+ char password required".into()));
+    }
+    let salt = SaltString::generate(&mut OsRng);
+    let argon = Argon2::default();
+    let hash = argon.hash_password(req.password.as_bytes(), &salt).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let created_ts = time::OffsetDateTime::now_utc().unix_timestamp();
+    let db = state.db.clone();
+    let salt_bytes = salt.as_str().as_bytes().to_vec();
+    let hash_bytes = hash.hash.unwrap().as_bytes().to_vec();
+    spawn_blocking(move || -> Result<(), rusqlite::Error> {
+        let conn = db.lock().unwrap();
+        db::upsert_user(&conn, &req.username, &hash_bytes, &salt_bytes, created_ts, req.expires_ts)?;
+        Ok(())
+    })
+    .await
+    .map_err(intern)?
+    .map_err(intern)?;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
-fn chunk_id(bytes: &[u8]) -> String {
-    blake3::hash(bytes).to_hex().to_string()
+#[derive(Deserialize)]
+struct LoginReq { username: String, password: String }
+
+async fn post_login(State(state): State<AppState>, Json(req): Json<LoginReq>) -> Result<(StatusCode, [(header::HeaderName, String); 1], Json<serde_json::Value>), (StatusCode, String)> {
+    let db = state.db.clone();
+    let user = spawn_blocking(move || -> Result<Option<db::UserRow>, rusqlite::Error> {
+        let conn = db.lock().unwrap();
+        db::get_user(&conn, &req.username)
+    })
+    .await
+    .map_err(intern)?
+    .map_err(intern)?;
+
+    let Some(user) = user else { return Err((StatusCode::UNAUTHORIZED, "invalid credentials".into())); };
+    if let Some(exp) = user.expires_ts { if time::OffsetDateTime::now_utc().unix_timestamp() > exp { return Err((StatusCode::UNAUTHORIZED, "password expired".into())); } }
+
+    let argon = Argon2::default();
+    let salt_b64 = std::str::from_utf8(&user.salt).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let salt = SaltString::from_b64(salt_b64).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let calc = argon.hash_password(req.password.as_bytes(), &salt).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let calc_bytes = calc.hash.unwrap().as_bytes();
+    if calc_bytes != user.pwd_hash.as_slice() {
+        return Err((StatusCode::UNAUTHORIZED, "invalid credentials".into()));
+    }
+
+    let mut sid_bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut sid_bytes);
+    let sid = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&sid_bytes);
+    state.sessions.lock().unwrap().insert(sid.clone(), req.username);
+    let cookie = format!("sid={}; Path=/; HttpOnly; SameSite=Lax", sid);
+
+    Ok((StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({"ok": true}))))
 }
 
-fn chunk_path(root: &Path, id: &str) -> PathBuf {
-    let a = &id[0..2];
-    let b = &id[2..4];
-    root.join(a).join(b).join(id)
+async fn post_logout(State(state): State<AppState>, RequireAuth(user): RequireAuth) -> Result<(StatusCode, [(header::HeaderName, String); 1], Json<serde_json::Value>), (StatusCode, String)> {
+    let cookie = "sid=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax".to_string();
+    let mut sessions = state.sessions.lock().unwrap();
+    sessions.retain(|_, v| v != &user);
+    Ok((StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({"ok": true}))))
 }
 
 // --- P2P setup ---
@@ -359,16 +431,23 @@ async fn main() -> Result<()> {
         p2p_peer_id,
         p2p_addrs,
         p2p_dial_tx,
+        // auth
+        sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
     };
 
     let app = Router::new()
         .route("/", get(index_html))
+        .route("/peers", get(peers_html))
+        .route("/gallery", get(gallery_html))
         .route("/health", get(|| async { "ok" }))
-        .route("/upload", post(upload_file))
+        .route("/auth/set_password", post(post_set_password))
+        .route("/auth/login", post(post_login))
+        .route("/auth/logout", post(post_logout))
+        .route("/upload", post(|state: State<AppState>, auth: RequireAuth, mp: Multipart| async move { upload_file(state, mp).await }))
         .route("/chunks/:id", get(get_chunk))
         .route("/p2p/info", get(get_p2p_info))
         .route("/p2p/peers", get(get_p2p_peers))
-        .route("/p2p/dial", post(post_p2p_dial))
+        .route("/p2p/dial", post(|state: State<AppState>, auth: RequireAuth, Json(req): Json<DialReq>| async move { post_p2p_dial(state, Json(req)).await }))
         .with_state(state);
 
     let addr: SocketAddr = cli.http_bind.parse()?;
@@ -427,6 +506,28 @@ async fn index_html() -> Result<Html<String>, (StatusCode, String)> {
         .map_err(intern)?
         .join("static")
         .join("index.html");
+    match tokio::fs::read_to_string(path).await {
+        Ok(s) => Ok(Html(s)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn peers_html() -> Result<Html<String>, (StatusCode, String)> {
+    let path = std::env::current_dir()
+        .map_err(intern)?
+        .join("static")
+        .join("peers.html");
+    match tokio::fs::read_to_string(path).await {
+        Ok(s) => Ok(Html(s)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn gallery_html() -> Result<Html<String>, (StatusCode, String)> {
+    let path = std::env::current_dir()
+        .map_err(intern)?
+        .join("static")
+        .join("gallery.html");
     match tokio::fs::read_to_string(path).await {
         Ok(s) => Ok(Html(s)),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),

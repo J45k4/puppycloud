@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PuppyCloud</title>
+  <title>PuppyCloud • Peers</title>
   <style>
     :root { color-scheme: light dark; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
@@ -15,50 +15,45 @@
     header nav a:hover { background: color-mix(in oklab, Canvas 92%, transparent); }
     main { padding: 20px; max-width: 900px; margin: 0 auto; }
     h1 { margin: 0; font-size: 1.4rem; }
-    section { margin: 20px 0; padding: 16px; border: 1px solid #e0e0e0; border-radius: 12px; scroll-margin-top: 80px; }
-    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    input[type=text] { padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; min-width: 280px; flex: 1; }
-    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #4f46e5; color: white; cursor: pointer; }
-    button:disabled { background: #a8a29e; cursor: not-allowed; }
+    section { margin: 20px 0; padding: 16px; border: 1px solid #e0e0e0; border-radius: 12px; }
     table { width: 100%; border-collapse: collapse; }
     th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; font-variant-numeric: tabular-nums; }
     .muted { color: #666; font-size: .92rem; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace; }
-    .chip { display:inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; font-size: .85rem; }
     .card { background: color-mix(in oklab, Canvas 98%, transparent); }
-
-    /* QR scanner modal */
     .qr-modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 1000; }
     .qr-modal.open { display: flex; }
     .qr-box { width: min(92vw, 520px); background: color-mix(in oklab, Canvas 98%, transparent); border: 1px solid #e0e0e0; border-radius: 12px; padding: 16px; }
 
-    /* Additional styles for tables and address list */
+    /* Prevent overflow in peers table */
     .table-wrap { overflow-x: auto; }
     table { table-layout: fixed; }
     th:nth-child(1), td:nth-child(1) { width: 38%; }
     th:nth-child(2), td:nth-child(2) { width: 42%; }
     th:nth-child(3), td:nth-child(3) { width: 20%; white-space: nowrap; }
     td.mono { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    /* Make addrs list wrap instead of overflowing */
-    #addrs { padding-left: 16px; }
-    #addrs li { overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
 <header>
   <h1><a href="/">PuppyCloud</a></h1>
   <nav aria-label="Primary">
-    <a href="/peers">Peers</a>
+    <a href="/peers" aria-current="page">Peers</a>
     <a href="/gallery">Gallery</a>
   </nav>
 </header>
 <main>
   <section class="card">
-    <h2>This node</h2>
-    <div class="muted">Peer ID:</div>
-    <div id="peerId" class="mono" style="word-break: break-all;">…</div>
-    <div class="muted" style="margin-top:10px">Listening addresses:</div>
-    <ul id="addrs" class="mono"></ul>
+    <h2>Known peers</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Peer ID</th><th>Last Address</th><th>Last Seen</th></tr>
+        </thead>
+        <tbody id="peers"></tbody>
+      </table>
+    </div>
+    <div class="muted">Up to 100 most recent entries.</div>
   </section>
 
   <section class="card">
@@ -71,7 +66,7 @@
     <div id="status" class="muted" style="margin-top:10px"></div>
   </section>
 </main>
-<!-- QR Scanner Modal -->
+
 <div id="qrModal" class="qr-modal" onclick="closeQRScanner()" aria-hidden="true" role="dialog">
   <div class="qr-box" onclick="event.stopPropagation()">
     <h3>Scan QR code</h3>
@@ -84,20 +79,8 @@
   </div>
 </div>
 
-<!-- jsQR library for decoding QR codes -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-
 <script>
-async function loadInfo(){
-  try{
-    const r = await fetch('/p2p/info');
-    const j = await r.json();
-    document.getElementById('peerId').textContent = j.peer_id;
-    const ul = document.getElementById('addrs');
-    ul.innerHTML = '';
-    j.addrs.forEach(a => { const li = document.createElement('li'); li.textContent = a; ul.appendChild(li); });
-  }catch(e){ console.error(e); }
-}
 async function loadPeers(){
   try{
     const r = await fetch('/p2p/peers');
@@ -106,8 +89,8 @@ async function loadPeers(){
     tb.innerHTML = '';
     for(const p of j){
       const tr = document.createElement('tr');
-      const td1 = document.createElement('td'); td1.textContent = p.peer_id; td1.className='mono';
-      const td2 = document.createElement('td'); td2.textContent = p.last_addr || ''; td2.className='mono';
+      const td1 = document.createElement('td'); td1.textContent = p.peer_id; td1.className='mono'; td1.title = p.peer_id;
+      const td2 = document.createElement('td'); td2.textContent = p.last_addr || ''; td2.className='mono'; td2.title = p.last_addr || '';
       const td3 = document.createElement('td'); td3.textContent = new Date(p.last_seen * 1000).toLocaleString();
       tr.append(td1, td2, td3); tb.appendChild(tr);
     }
@@ -126,8 +109,6 @@ async function dial(){
   }catch(e){ status.textContent = 'Error: ' + e; }
   btn.disabled = false;
 }
-
-// QR Scanner implementation
 let qrStream = null;
 let qrRaf = null;
 function openQRScanner(){
@@ -140,22 +121,12 @@ function openQRScanner(){
     modal.classList.add('open');
     return;
   }
-  if(!window.jsQR){
-    err.textContent = 'QR decoder not loaded. Check network connection.';
-  }
+  if(!window.jsQR){ err.textContent = 'QR decoder not loaded. Check network connection.'; }
   modal.classList.add('open');
   navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
-    .then(stream => {
-      qrStream = stream;
-      video.srcObject = stream;
-      return video.play();
-    })
-    .then(() => {
-      scanLoop();
-    })
-    .catch(e => {
-      err.textContent = 'Camera error: ' + e;
-    });
+    .then(stream => { qrStream = stream; video.srcObject = stream; return video.play(); })
+    .then(() => { scanLoop(); })
+    .catch(e => { err.textContent = 'Camera error: ' + e; });
 }
 function scanLoop(){
   const video = document.getElementById('qrVideo');
@@ -169,10 +140,7 @@ function scanLoop(){
     const img = ctx.getImageData(0, 0, w, h);
     try{
       const code = window.jsQR && jsQR(img.data, w, h, { inversionAttempts: 'dontInvert' });
-      if(code && code.data){
-        handleQRResult(code.data.trim());
-        return;
-      }
+      if(code && code.data){ handleQRResult(code.data.trim()); return; }
     }catch(e){ err.textContent = 'Decode error: ' + e; }
   }
   qrRaf = requestAnimationFrame(scanLoop);
@@ -181,10 +149,7 @@ function handleQRResult(text){
   const addrInput = document.getElementById('addr');
   addrInput.value = text;
   closeQRScanner();
-  // auto-dial after successful scan
-  if(typeof dial === 'function'){
-    dial();
-  }
+  dial();
 }
 function closeQRScanner(){
   const modal = document.getElementById('qrModal');
@@ -194,8 +159,8 @@ function closeQRScanner(){
   if(video){ try{ video.pause(); }catch(_){} }
   if(qrStream){ qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
 }
-window.addEventListener('load', ()=>{ loadInfo(); loadPeers(); });
 window.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeQRScanner(); });
+window.addEventListener('load', loadPeers);
 </script>
 </body>
 </html>

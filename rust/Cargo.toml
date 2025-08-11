@@ -15,6 +15,7 @@ rusqlite = { version = "0.30", features = ["bundled"] }
 blake3 = "1"
 bytes = "1"
 time = { version = "0.3", features = ["serde"] }
+base64 = "0.21"
 
 # Config
 clap = { version = "4", features = ["derive"] }
@@ -23,3 +24,7 @@ toml = "0.8"
 # P2P
 libp2p = { version = "0.54", features = ["full"] }
 futures = "0.3"
+
+# Auth
+argon2 = { version = "0.5", default-features = true }
+rand_core = "0.6"

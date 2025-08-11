@@ -31,6 +31,13 @@ pub fn init_schema(conn: &Connection) -> SqlResult<()> {
         "CREATE TABLE IF NOT EXISTS local_keys (\n            name        TEXT PRIMARY KEY,\n            key         BLOB NOT NULL,\n            created_ts  INTEGER NOT NULL\n        )",
         [],
     )?;
+
+    // Users table for password auth
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS users (\n            username     TEXT PRIMARY KEY,\n            pwd_hash     BLOB NOT NULL,\n            salt         BLOB NOT NULL,\n            created_ts   INTEGER NOT NULL,\n            expires_ts   INTEGER\n        )",
+        [],
+    )?;
+
     Ok(())
 }
 
@@ -131,4 +138,52 @@ pub fn get_recent_peer_addrs(
         }
     }
     Ok(out)
+}
+
+// --- Auth helpers ---
+pub struct UserRow {
+    pub username: String,
+    pub pwd_hash: Vec<u8>,
+    pub salt: Vec<u8>,
+    pub created_ts: i64,
+    pub expires_ts: Option<i64>,
+}
+
+pub fn get_user(conn: &Connection, username: &str) -> SqlResult<Option<UserRow>> {
+    let mut stmt = conn.prepare("SELECT username, pwd_hash, salt, created_ts, expires_ts FROM users WHERE username = ?1")?;
+    let mut rows = stmt.query(params![username])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(UserRow {
+            username: row.get(0)?,
+            pwd_hash: row.get(1)?,
+            salt: row.get(2)?,
+            created_ts: row.get(3)?,
+            expires_ts: row.get(4)?,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn upsert_user(
+    conn: &Connection,
+    username: &str,
+    pwd_hash: &[u8],
+    salt: &[u8],
+    created_ts: i64,
+    expires_ts: Option<i64>,
+) -> SqlResult<()> {
+    conn.execute(
+        "INSERT INTO users (username, pwd_hash, salt, created_ts, expires_ts) VALUES (?1, ?2, ?3, ?4, ?5)\n         ON CONFLICT(username) DO UPDATE SET pwd_hash = excluded.pwd_hash, salt = excluded.salt, expires_ts = excluded.expires_ts",
+        params![username, pwd_hash, salt, created_ts, expires_ts],
+    )?;
+    Ok(())
+}
+
+pub fn set_user_expiry(conn: &Connection, username: &str, expires_ts: Option<i64>) -> SqlResult<()> {
+    conn.execute(
+        "UPDATE users SET expires_ts = ?2 WHERE username = ?1",
+        params![username, expires_ts],
+    )?;
+    Ok(())
 }
