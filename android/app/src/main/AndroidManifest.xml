@@ -4,6 +4,10 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- Media permissions for gallery access -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:targetApi="33" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:targetApi="33" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <application
         android:allowBackup="true"

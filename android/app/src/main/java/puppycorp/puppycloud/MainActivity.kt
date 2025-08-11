@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -25,6 +26,7 @@ import puppycorp.puppycloud.ui.ConnectScreen
 import puppycorp.puppycloud.ui.PeersScreen
 import puppycorp.puppycloud.ui.Peer
 import puppycorp.puppycloud.ui.theme.PuppyCloudTheme
+import puppycorp.puppycloud.ui.GalleryScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,14 +38,17 @@ class MainActivity : ComponentActivity() {
                 var showScanner by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
                 var scannedText by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
                 var tabIndex by rememberSaveable { androidx.compose.runtime.mutableStateOf(0) }
-                val tabs = listOf("Connect", "Peers")
+                val tabs = listOf("Connect", "Peers", "Gallery")
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                     bottomBar = {
                         if (!showScanner) {
-                            TabRow(selectedTabIndex = tabIndex) {
+                            TabRow(
+                                selectedTabIndex = tabIndex,
+                                modifier = Modifier.navigationBarsPadding()
+                            ) {
                                 tabs.forEachIndexed { index, title ->
                                     Tab(
                                         selected = tabIndex == index,
@@ -101,6 +106,12 @@ class MainActivity : ComponentActivity() {
                                     onPeerClick = { peer ->
                                         Log.i("PuppyCloud", "Peer clicked: ${peer.name}")
                                     }
+                                )
+                            }
+                            2 -> {
+                                GalleryScreen(
+                                    modifier = Modifier,
+                                    contentPadding = innerPadding
                                 )
                             }
                         }

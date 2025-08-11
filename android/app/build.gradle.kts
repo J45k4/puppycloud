@@ -49,6 +49,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    // Compose Foundation (LazyVerticalGrid, etc.)
+    implementation("androidx.compose.foundation:foundation")
     // Compose runtime saveable for rememberSaveable
     implementation("androidx.compose.runtime:runtime-saveable")
 
@@ -60,6 +62,15 @@ dependencies {
 
     // ML Kit Barcode Scanning
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
+    // Coil for image loading
+    implementation("io.coil-kt:coil:2.6.0")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // ExoPlayer (optional for future video playback)
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
