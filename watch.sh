@@ -1,0 +1,1 @@
+bun build ./web/app.ts --outfile=./assets/puppycloud.js --watch

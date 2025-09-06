@@ -470,6 +470,33 @@ async fn spawn_p2p(
     Ok((pid_str, dial_tx))
 }
 
+const INDEX_HTML: &str = include_str!("../../assets/index.html");
+const JS_HTML: &str = include_str!("../../assets/puppycloud.js");
+const CSS: &str = include_str!("../../assets/puppycloud.css");
+
+#[cfg(debug_assertions)]
+async fn js() -> String {
+    use tokio::io::AsyncReadExt;
+
+	let mut file = tokio::fs::File::open("../assets/puppycloud.js").await.unwrap();
+	let mut contents = String::new();
+	file.read_to_string(&mut contents).await.unwrap();
+	contents
+}
+
+#[cfg(not(debug_assertions))]
+async fn js() -> &'static str {
+	JS_HTML
+}
+
+async fn root() -> Html<&'static str> {
+	Html(INDEX_HTML)
+}
+
+async fn css() -> &'static str {
+	CSS
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
@@ -530,7 +557,8 @@ async fn main() -> Result<()> {
     };
 
     let app = Router::new()
-        .route("/", get(index_html))
+        .route("/puppycloud.js", get(js))
+        .route("/puppycloud.css", get(css))
         .route("/peers", get(peers_html))
         .route("/gallery", get(gallery_html))
         .route("/health", get(|| async { "ok" }))
@@ -548,6 +576,14 @@ async fn main() -> Result<()> {
         .route("/chunks/:id", get(get_chunk))
         .route("/p2p/info", get(get_p2p_info))
         .route("/p2p/peers", get(get_p2p_peers))
+        // .route(
+        //     "/p2p/invite",
+        //     post(
+        //         |state: State<AppState>, Json(req): Json<InviteReq>| async move {
+        //             post_p2p_invite(state, Json(req)).await
+        //         },
+        //     ),
+        // )
         .route(
             "/p2p/dial",
             post(
@@ -556,7 +592,8 @@ async fn main() -> Result<()> {
                 },
             ),
         )
-        .with_state(state);
+        .with_state(state)
+        .fallback(get(root));
 
     let addr: SocketAddr = cli.http_bind.parse()?;
     let listener = match TcpListener::bind(addr).await {
