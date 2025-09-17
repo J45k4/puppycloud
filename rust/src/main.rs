@@ -71,6 +71,7 @@ struct AppState {
     p2p_peer_id: String,
     p2p_addrs: Arc<Mutex<Vec<String>>>,
     p2p_dial_tx: mpsc::Sender<String>,
+    invites: Arc<Mutex<HashMap<String, i64>>>, // password -> expiry unix timestamp
     // auth
     sessions: Arc<Mutex<HashMap<String, String>>>, // session_id -> username
 }
@@ -552,6 +553,7 @@ async fn main() -> Result<()> {
         p2p_peer_id,
         p2p_addrs,
         p2p_dial_tx,
+        invites: Arc::new(Mutex::new(std::collections::HashMap::new())),
         // auth
         sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
     };
@@ -584,6 +586,14 @@ async fn main() -> Result<()> {
         //         },
         //     ),
         // )
+        .route(
+            "/p2p/invite",
+            post(
+                |state: State<AppState>, _auth: RequireAuth, Json(req): Json<InviteReq>| async move {
+                    post_p2p_invite(state, Json(req)).await
+                },
+            ),
+        )
         .route(
             "/p2p/dial",
             post(
@@ -704,19 +714,57 @@ async fn gallery_html() -> Result<Html<String>, (StatusCode, String)> {
 #[derive(Deserialize)]
 struct DialReq {
     addr: String,
+    password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct InviteReq {
+    password: String,
+    expires: i64,
 }
 
 async fn post_p2p_dial(
     State(state): State<AppState>,
     Json(req): Json<DialReq>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    let exp = {
+        let invites = state.invites.lock().unwrap();
+        invites.get(&req.password).copied()
+    };
+    match exp {
+        Some(exp) if now <= exp => {
+            state
+                .p2p_dial_tx
+                .send(req.addr.clone())
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            Ok(Json(
+                serde_json::json!({ "status": "dialing", "addr": req.addr }),
+            ))
+        }
+        _ => Err((StatusCode::UNAUTHORIZED, "invalid or expired invite".into())),
+    }
+}
+
+async fn post_p2p_invite(
+    State(state): State<AppState>,
+    Json(req): Json<InviteReq>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let addr = state
+        .p2p_addrs
+        .lock()
+        .unwrap()
+        .first()
+        .cloned()
+        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, "no p2p address".into()))?;
     state
-        .p2p_dial_tx
-        .send(req.addr.clone())
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .invites
+        .lock()
+        .unwrap()
+        .insert(req.password.clone(), req.expires);
     Ok(Json(
-        serde_json::json!({ "status": "dialing", "addr": req.addr }),
+        serde_json::json!({ "addr": addr, "password": req.password, "expires": req.expires }),
     ))
 }
 
