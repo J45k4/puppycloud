@@ -1,0 +1,21 @@
+{
+	"name": "puppycloud",
+	"module": "index.ts",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"lint": "bunx biome lint .",
+		"lint-fix": "bunx biome lint . --write",
+		"format": "bunx biome format .",
+		"format-fix": "bunx biome format . --write",
+		"check": "tsc --noEmit",
+		"test": "bun test"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@biomejs/biome": "^2.2.6"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	}
+}
