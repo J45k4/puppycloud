@@ -1,6 +1,329 @@
-<html>
-    <head>
-        <title>PuppyCloud</title>
-    </head>
-    <body></body>
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>PuppyCloud</title>
+		<style>
+			:root {
+				color-scheme: light dark;
+				font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+				background-color: #0d1117;
+				color: #f0f6fc;
+			}
+
+			body {
+				margin: 0;
+				background:
+					linear-gradient(
+						180deg,
+						rgba(13, 17, 23, 0.95) 0%,
+						rgba(13, 17, 23, 0.75) 100%
+					),
+					url("https://images.unsplash.com/photo-1451188502541-13943edb6acb?auto=format&fit=crop&w=1400&q=80")
+						center/cover fixed;
+				min-height: 100vh;
+				display: flex;
+				flex-direction: column;
+			}
+
+			header {
+				backdrop-filter: blur(12px);
+				background-color: rgba(13, 17, 23, 0.8);
+				padding: 24px 10vw;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				box-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
+				position: sticky;
+				top: 0;
+				z-index: 10;
+			}
+
+			header h1 {
+				margin: 0;
+				font-size: 1.75rem;
+				letter-spacing: 0.04em;
+			}
+
+			header nav {
+				display: flex;
+				gap: 16px;
+			}
+
+			header nav a {
+				text-decoration: none;
+				color: inherit;
+				font-weight: 500;
+				padding: 8px 16px;
+				border-radius: 999px;
+				transition:
+					background-color 150ms ease,
+					transform 150ms ease;
+			}
+
+			header nav a:hover,
+			header nav a:focus {
+				background-color: rgba(56, 139, 253, 0.2);
+				transform: translateY(-1px);
+			}
+
+			main {
+				padding: 48px 10vw 64px;
+				display: grid;
+				gap: 32px;
+			}
+
+			.overview {
+				display: grid;
+				gap: 24px;
+			}
+
+			.card-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+				gap: 20px;
+			}
+
+			.card {
+				background-color: rgba(13, 17, 23, 0.85);
+				border: 1px solid rgba(240, 246, 252, 0.08);
+				border-radius: 16px;
+				padding: 24px;
+				box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+			}
+
+			.card span {
+				opacity: 0.7;
+				font-size: 0.85rem;
+				letter-spacing: 0.05em;
+				text-transform: uppercase;
+			}
+
+			.card strong {
+				font-size: 2rem;
+				font-weight: 700;
+			}
+
+			section h2 {
+				margin: 0 0 16px;
+				font-size: 1.5rem;
+			}
+
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				background-color: rgba(13, 17, 23, 0.85);
+				border-radius: 16px;
+				overflow: hidden;
+				box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+			}
+
+			thead {
+				background-color: rgba(56, 139, 253, 0.15);
+			}
+
+			th,
+			td {
+				padding: 16px 20px;
+				text-align: left;
+				font-size: 0.95rem;
+				border-bottom: 1px solid rgba(240, 246, 252, 0.06);
+			}
+
+			tbody tr:last-child td {
+				border-bottom: none;
+			}
+
+			tbody tr:hover {
+				background-color: rgba(56, 139, 253, 0.08);
+			}
+
+			.cta-section {
+				display: grid;
+				gap: 20px;
+			}
+
+			.cta-card {
+				background-color: rgba(13, 17, 23, 0.85);
+				border: 1px solid rgba(240, 246, 252, 0.08);
+				border-radius: 16px;
+				padding: 32px;
+				box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+				display: flex;
+				flex-direction: column;
+				gap: 16px;
+			}
+
+			.cta-card p {
+				margin: 0;
+				font-size: 1rem;
+				line-height: 1.6;
+			}
+
+			.primary-button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				padding: 12px 24px;
+				border-radius: 999px;
+				background: linear-gradient(135deg, #388bfd 0%, #1f6feb 100%);
+				color: white;
+				font-weight: 600;
+				font-size: 1rem;
+				text-decoration: none;
+				box-shadow: 0 18px 30px rgba(56, 139, 253, 0.35);
+				transition:
+					transform 150ms ease,
+					box-shadow 150ms ease;
+				width: fit-content;
+			}
+
+			.primary-button:hover,
+			.primary-button:focus {
+				transform: translateY(-1px);
+				box-shadow: 0 22px 35px rgba(56, 139, 253, 0.5);
+			}
+
+			footer {
+				margin-top: auto;
+				padding: 24px 10vw 32px;
+				text-align: center;
+				font-size: 0.85rem;
+				opacity: 0.6;
+			}
+
+			@media (max-width: 768px) {
+				header {
+					flex-direction: column;
+					align-items: flex-start;
+					gap: 16px;
+				}
+
+				header nav {
+					width: 100%;
+					flex-wrap: wrap;
+				}
+
+				header nav a {
+					padding: 8px 12px;
+				}
+
+				table {
+					font-size: 0.85rem;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>PuppyCloud</h1>
+			<nav>
+				<a href="#overview">Overview</a>
+				<a href="#resources">Resources</a>
+				<a href="/create">Create</a>
+			</nav>
+		</header>
+		<main>
+			<section id="overview" class="overview">
+				<section>
+					<h2>Resource Overview</h2>
+					<p>Track utilization across all PuppyCloud resources at a glance.</p>
+				</section>
+				<div class="card-grid">
+					<article class="card">
+						<span>Compute Instances</span>
+						<strong>12</strong>
+						<p>6 running • 4 sleeping • 2 paused</p>
+					</article>
+					<article class="card">
+						<span>Containers</span>
+						<strong>28</strong>
+						<p>18 active • 6 updating • 4 queued</p>
+					</article>
+					<article class="card">
+						<span>CPU Utilization</span>
+						<strong>63%</strong>
+						<p>Peaking at 82% during the last hour</p>
+					</article>
+					<article class="card">
+						<span>Network Throughput</span>
+						<strong>4.3 Gbps</strong>
+						<p>Across 3 regions • Latency avg 32 ms</p>
+					</article>
+				</div>
+			</section>
+			<section id="resources">
+				<h2>Active Resources</h2>
+				<table>
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>Type</th>
+							<th>Region</th>
+							<th>Status</th>
+							<th>CPU</th>
+							<th>Memory</th>
+							<th>Last Activity</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>api-core-01</td>
+							<td>Virtual Machine</td>
+							<td>us-central</td>
+							<td>Running</td>
+							<td>8 vCPU</td>
+							<td>32 GB</td>
+							<td>2 minutes ago</td>
+						</tr>
+						<tr>
+							<td>batch-worker-23</td>
+							<td>Container</td>
+							<td>eu-west</td>
+							<td>Updating</td>
+							<td>4 vCPU</td>
+							<td>8 GB</td>
+							<td>5 minutes ago</td>
+						</tr>
+						<tr>
+							<td>ml-lab-gpu</td>
+							<td>Virtual Machine</td>
+							<td>us-east</td>
+							<td>Paused</td>
+							<td>16 vCPU • 1 GPU</td>
+							<td>64 GB</td>
+							<td>30 minutes ago</td>
+						</tr>
+						<tr>
+							<td>edge-proxy</td>
+							<td>Container</td>
+							<td>ap-southeast</td>
+							<td>Running</td>
+							<td>2 vCPU</td>
+							<td>2 GB</td>
+							<td>Just now</td>
+						</tr>
+					</tbody>
+				</table>
+			</section>
+			<section class="cta-section">
+				<div class="cta-card">
+					<h2>Ready to launch something new?</h2>
+					<p>Jump into the dedicated creation console to configure virtual machines or containers with fine-grained control over regions, sizing, startup scripts, and more.</p>
+					<a class="primary-button" href="/create">Open creation console</a>
+				</div>
+			</section>
+		</main>
+		<footer>
+			© <span id="year"></span>PuppyCloud. Secure infrastructure for ambitious teams.
+		</footer>
+		<script>
+			document.getElementById("year").textContent =
+				new Date().getFullYear();
+		</script>
+	</body>
 </html>

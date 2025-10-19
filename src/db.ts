@@ -52,7 +52,7 @@ export function migrate(database: Database = db): void {
 		const sql = readFileSync(join(migrationsDir, file), "utf8")
 		const run = database.transaction(() => {
 			database.exec(sql)
-			database.query("INSERT INTO migrations (id, applied_at) VALUES (?, ?)").run(id, now())
+			database.query("INSERT INTO migrations (id, applied_at) VALUES (?, ?)").run(id, Date.now())
 		})
 		run()
 	}
