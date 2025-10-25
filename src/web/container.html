@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Container Details • PuppyCloud</title>
+		<style>
+            :root {
+                color-scheme: light dark;
+                font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+                background-color: #0d1117;
+                color: #f0f6fc;
+            }
+
+            body {
+                margin: 0;
+                background:
+                    linear-gradient(
+                        180deg,
+                        rgba(13, 17, 23, 0.95) 0%,
+                        rgba(13, 17, 23, 0.75) 100%
+                    ),
+                    url("https://images.unsplash.com/photo-1451188502541-13943edb6acb?auto=format&fit=crop&w=1400&q=80")
+                        center/cover fixed;
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                box-sizing: border-box;
+            }
+
+            header {
+                backdrop-filter: blur(12px);
+                background-color: rgba(13, 17, 23, 0.8);
+                padding: 24px 10vw;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+
+            header h1 {
+                margin: 0;
+                font-size: 1.75rem;
+                letter-spacing: 0.04em;
+            }
+
+            header nav {
+                display: flex;
+                gap: 16px;
+            }
+
+            header nav a {
+                text-decoration: none;
+                color: inherit;
+                font-weight: 500;
+                padding: 8px 16px;
+                border-radius: 999px;
+                transition:
+                    background-color 150ms ease,
+                    transform 150ms ease;
+            }
+
+            header nav a:hover,
+            header nav a:focus {
+                background-color: rgba(56, 139, 253, 0.2);
+                transform: translateY(-1px);
+            }
+
+            main {
+                width: min(960px, 100%);
+                margin: 0 auto;
+                padding: 48px 32px 64px;
+                display: flex;
+                flex-direction: column;
+                gap: 32px;
+            }
+
+            .back-link {
+                color: #58a6ff;
+                text-decoration: none;
+                font-weight: 500;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .back-link:hover,
+            .back-link:focus {
+                text-decoration: underline;
+            }
+
+            .status-banner {
+                border-radius: 12px;
+                padding: 16px 20px;
+                background-color: rgba(56, 139, 253, 0.15);
+                border: 1px solid rgba(56, 139, 253, 0.35);
+                font-size: 0.95rem;
+            }
+
+            .status-banner.error {
+                background-color: rgba(248, 81, 73, 0.15);
+                border-color: rgba(248, 81, 73, 0.35);
+                color: #f85149;
+            }
+
+            .hero {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .hero h2 {
+                margin: 0;
+                font-size: 2rem;
+            }
+
+            .hero p {
+                margin: 0;
+                font-size: 1.05rem;
+                color: rgba(240, 246, 252, 0.75);
+            }
+
+            .card-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                gap: 16px;
+            }
+
+            .card {
+                background-color: rgba(13, 17, 23, 0.85);
+                border: 1px solid rgba(240, 246, 252, 0.08);
+                border-radius: 16px;
+                padding: 24px;
+                box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .card span {
+                opacity: 0.7;
+                font-size: 0.85rem;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+            }
+
+            .card strong {
+                font-size: 1.15rem;
+                font-weight: 600;
+                word-break: break-word;
+            }
+
+            .card code {
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+                font-size: 1rem;
+                padding: 6px 8px;
+                background-color: rgba(240, 246, 252, 0.08);
+                border-radius: 6px;
+                display: block;
+                word-break: break-all;
+            }
+
+            .card--state {
+                gap: 10px;
+            }
+
+            .state-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .state-indicator {
+                display: inline-flex;
+                align-items: center;
+                justify-content: flex-start;
+                padding: 4px 12px;
+                border-radius: 999px;
+                font-weight: 600;
+                font-size: 1rem;
+                background-color: rgba(240, 246, 252, 0.08);
+                width: fit-content;
+                text-transform: capitalize;
+            }
+
+            .state-indicator.is-running {
+                background-color: rgba(46, 160, 67, 0.18);
+                color: #2ea043;
+            }
+
+            .state-indicator.is-exited {
+                background-color: rgba(139, 148, 158, 0.18);
+                color: #8b949e;
+            }
+
+            .state-indicator.is-paused {
+                background-color: rgba(210, 153, 34, 0.22);
+                color: #d29922;
+            }
+
+            .state-indicator.is-error {
+                background-color: rgba(248, 81, 73, 0.18);
+                color: #f85149;
+            }
+
+            .state-health {
+                margin: 0;
+                font-size: 0.85rem;
+                color: rgba(240, 246, 252, 0.7);
+            }
+
+            .card p {
+                margin: 0;
+                font-size: 0.9rem;
+                color: rgba(240, 246, 252, 0.75);
+            }
+
+            .detail-section {
+                background-color: rgba(13, 17, 23, 0.85);
+                border: 1px solid rgba(240, 246, 252, 0.08);
+                border-radius: 16px;
+                padding: 28px;
+                box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+                display: grid;
+                gap: 24px;
+            }
+
+            .detail-section h2 {
+                margin: 0;
+                font-size: 1.5rem;
+            }
+
+            .detail-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 16px 20px;
+            }
+
+            .detail-grid div {
+                display: grid;
+                gap: 6px;
+            }
+
+            .detail-grid dt {
+                font-size: 0.85rem;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+                opacity: 0.7;
+            }
+
+            .detail-grid dd {
+                margin: 0;
+                font-size: 1rem;
+                word-break: break-word;
+            }
+
+            .pill-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .pill-list li {
+                background-color: rgba(56, 139, 253, 0.15);
+                border: 1px solid rgba(56, 139, 253, 0.35);
+                border-radius: 999px;
+                padding: 8px 14px;
+                font-size: 0.9rem;
+            }
+
+            .list-empty {
+                margin: 0;
+                color: rgba(240, 246, 252, 0.65);
+                font-size: 0.95rem;
+            }
+
+            pre {
+                background-color: rgba(240, 246, 252, 0.05);
+                border-radius: 12px;
+                padding: 20px;
+                overflow-x: auto;
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+                font-size: 0.85rem;
+                line-height: 1.5;
+                margin: 0;
+            }
+
+            footer {
+                margin-top: auto;
+                padding: 24px 10vw 32px;
+                text-align: center;
+                font-size: 0.85rem;
+                opacity: 0.6;
+            }
+
+            @media (max-width: 768px) {
+                header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 16px;
+                }
+
+                main {
+                    padding: 32px 20px 48px;
+                }
+
+                header nav {
+                    width: 100%;
+                    flex-wrap: wrap;
+                }
+
+                header nav a {
+                    padding: 8px 12px;
+                }
+            }
+        </style>
+	</head>
+	<body>
+		<header>
+			<h1>PuppyCloud</h1>
+			<nav>
+				<a href="/">Dashboard</a>
+				<a href="/create">Create</a>
+			</nav>
+		</header>
+		<main>
+			<a class="back-link" href="/">&larr; Back to dashboard</a>
+			<div id="statusMessage" class="status-banner">Loading container details...</div>
+			<section class="hero">
+				<h2 id="containerName">Container</h2>
+				<p id="containerDescription">Fetching container information…</p>
+			</section>
+			<section class="card-grid">
+				<article class="card">
+					<span>Name</span>
+					<strong id="summaryName">-</strong>
+				</article>
+				<article class="card">
+					<span>Container ID</span>
+					<code id="containerId">-</code>
+				</article>
+				<article class="card">
+					<span>Image</span>
+					<strong id="containerImage">-</strong>
+				</article>
+				<article class="card card--state">
+					<span>State</span>
+					<div class="state-meta">
+						<span id="containerState" class="state-indicator">-</span>
+						<p id="healthSummary" class="state-health">Health: -</p>
+					</div>
+				</article>
+			</section>
+			<section class="detail-section">
+				<h2>Lifecycle</h2>
+				<dl class="detail-grid">
+					<div>
+						<dt>Created</dt>
+						<dd id="createdAt">-</dd>
+					</div>
+					<div>
+						<dt>Started</dt>
+						<dd id="startedAt">-</dd>
+					</div>
+					<div>
+						<dt>Finished</dt>
+						<dd id="finishedAt">-</dd>
+					</div>
+					<div>
+						<dt>Restart count</dt>
+						<dd id="restartCount">-</dd>
+					</div>
+					<div>
+						<dt>Command</dt>
+						<dd id="command">-</dd>
+					</div>
+				</dl>
+			</section>
+			<section class="detail-section">
+				<h2>Configuration</h2>
+				<div>
+					<h3>Environment variables</h3>
+					<ul id="environmentList" class="pill-list"></ul>
+					<p id="environmentEmpty" class="list-empty">No environment variables configured.</p>
+				</div>
+				<div>
+					<h3>Port bindings</h3>
+					<ul id="portsList" class="pill-list"></ul>
+					<p id="portsEmpty" class="list-empty">No published ports.</p>
+				</div>
+				<div>
+					<h3>Mounts</h3>
+					<ul id="mountsList" class="pill-list"></ul>
+					<p id="mountsEmpty" class="list-empty">No mounts attached.</p>
+				</div>
+				<div>
+					<h3>Labels</h3>
+					<ul id="labelsList" class="pill-list"></ul>
+					<p id="labelsEmpty" class="list-empty">No labels found.</p>
+				</div>
+			</section>
+			<section class="detail-section">
+				<h2>Raw inspect data</h2>
+				<pre id="rawJson">Loading…</pre>
+			</section>
+		</main>
+		<footer>
+			© <span id="year"></span>&nbsp;PuppyCloud. Secure infrastructure for ambitious teams.
+		</footer>
+		<script>
+            document.getElementById("year").textContent = new Date().getFullYear();
+
+            const statusMessage = document.getElementById("statusMessage");
+            const params = new URLSearchParams(window.location.search);
+            const requestedId = params.get("id");
+
+            if (!requestedId) {
+                statusMessage.textContent = "No container identifier provided.";
+                statusMessage.classList.add("error");
+                resetView();
+            } else {
+                loadContainerDetails(requestedId);
+            }
+
+            async function loadContainerDetails(containerId) {
+                try {
+                    document.title = `Container ${containerId.substring(0, 12)} • PuppyCloud`;
+                    const response = await fetch(`/api/container?id=${encodeURIComponent(containerId)}`);
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || "Failed to load container details");
+                    }
+
+                    updateView(data.container, containerId);
+                    statusMessage.textContent = "Container information loaded successfully.";
+                    statusMessage.classList.remove("error");
+                } catch (error) {
+                    console.error("Error loading container details:", error);
+                    statusMessage.textContent = `Error loading container: ${error instanceof Error ? error.message : error}`;
+                    statusMessage.classList.add("error");
+                    resetView();
+                }
+            }
+
+            function updateView(container, fallbackId) {
+                const shortId = container?.id ? container.id.substring(0, 12) : fallbackId.substring(0, 12);
+                const name = container?.name || "(unnamed)";
+                const image = container?.image || "-";
+                const state = container?.state || "unknown";
+                const health = container?.healthStatus || "unknown";
+                const command = Array.isArray(container?.command) ? container.command.join(" ") : container?.command || "-";
+
+                document.getElementById("containerName").textContent = `Container ${shortId}`;
+                document.getElementById("containerDescription").textContent = `Detailed properties for ${name}`;
+                document.getElementById("summaryName").textContent = name;
+                document.getElementById("containerId").textContent = container?.id || fallbackId;
+                document.getElementById("containerImage").textContent = image;
+
+                const stateElement = document.getElementById("containerState");
+                updateStateBadge(stateElement, state);
+                document.getElementById("healthSummary").textContent = formatHealth(health);
+
+                document.getElementById("createdAt").textContent = formatDate(container?.createdAt);
+                document.getElementById("startedAt").textContent = formatDate(container?.startedAt);
+                document.getElementById("finishedAt").textContent = formatDate(container?.finishedAt);
+                document.getElementById("restartCount").textContent = container?.restartCount ?? "-";
+                document.getElementById("command").textContent = command;
+
+                renderList(
+                    document.getElementById("environmentList"),
+                    document.getElementById("environmentEmpty"),
+                    container?.environment,
+                    value => value
+                );
+                renderList(
+                    document.getElementById("portsList"),
+                    document.getElementById("portsEmpty"),
+                    container?.ports,
+                    formatPortBinding
+                );
+                renderList(
+                    document.getElementById("mountsList"),
+                    document.getElementById("mountsEmpty"),
+                    container?.mounts,
+                    formatMount
+                );
+                const labelEntries = container?.labels ? Object.entries(container.labels) : [];
+                renderList(
+                    document.getElementById("labelsList"),
+                    document.getElementById("labelsEmpty"),
+                    labelEntries,
+                    formatLabel
+                );
+
+                const raw = container?.raw ? JSON.stringify(container.raw, null, 2) : "No inspect data available.";
+                document.getElementById("rawJson").textContent = raw;
+            }
+
+            function resetView() {
+                document.getElementById("containerName").textContent = "Container";
+                document.getElementById("containerDescription").textContent = "Unable to load container details.";
+                document.getElementById("summaryName").textContent = "-";
+                document.getElementById("containerId").textContent = "-";
+                document.getElementById("containerImage").textContent = "-";
+                const stateElement = document.getElementById("containerState");
+                updateStateBadge(stateElement, "-");
+                document.getElementById("healthSummary").textContent = formatHealth("-");
+                document.getElementById("createdAt").textContent = "-";
+                document.getElementById("startedAt").textContent = "-";
+                document.getElementById("finishedAt").textContent = "-";
+                document.getElementById("restartCount").textContent = "-";
+                document.getElementById("command").textContent = "-";
+                document.getElementById("environmentList").innerHTML = "";
+                document.getElementById("environmentEmpty").style.display = "block";
+                document.getElementById("portsList").innerHTML = "";
+                document.getElementById("portsEmpty").style.display = "block";
+                document.getElementById("mountsList").innerHTML = "";
+                document.getElementById("mountsEmpty").style.display = "block";
+                document.getElementById("labelsList").innerHTML = "";
+                document.getElementById("labelsEmpty").style.display = "block";
+                document.getElementById("rawJson").textContent = "No inspect data available.";
+            }
+
+            function renderList(listElement, emptyElement, items, formatter) {
+                if (!items || items.length === 0) {
+                    listElement.innerHTML = "";
+                    emptyElement.style.display = "block";
+                    return;
+                }
+
+                emptyElement.style.display = "none";
+                listElement.innerHTML = items.map(item => `<li>${formatter(item)}</li>`).join("");
+            }
+
+            function formatDate(value) {
+                if (typeof value !== "string" || value.length === 0) {
+                    return "-";
+                }
+
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) {
+                    return value;
+                }
+
+                return `${date.toLocaleString()} (${date.toISOString()})`;
+            }
+
+            function updateStateBadge(element, state) {
+                const baseClass = "state-indicator";
+                element.className = baseClass;
+
+                const label = typeof state === "string" && state.length > 0 ? state : "-";
+                const normalized = label.toLowerCase();
+                element.textContent = label;
+
+                switch (normalized) {
+                    case "running":
+                        element.classList.add("is-running");
+                        break;
+                    case "exited":
+                        element.classList.add("is-exited");
+                        break;
+                    case "paused":
+                        element.classList.add("is-paused");
+                        break;
+                    case "-":
+                        break;
+                    default:
+                        element.classList.add("is-error");
+                        break;
+                }
+            }
+
+            function formatHealth(health) {
+                if (typeof health !== "string" || health.length === 0) {
+                    return "Health: unknown";
+                }
+
+                return `Health: ${health}`;
+            }
+
+            function formatPortBinding(port) {
+                const host = [port.hostIp || "0.0.0.0", port.hostPort || "-"];
+                return `${host.join(":")} → ${port.containerPort}`;
+            }
+
+            function formatMount(mount) {
+                const source = mount.source || "-";
+                const destination = mount.destination || "-";
+                const mode = mount.mode || "";
+                const writable = mount.rw === false ? "read-only" : "read-write";
+                const type = mount.type ? `${mount.type} • ` : "";
+                return `${type}${source} → ${destination} (${mode || "default"}, ${writable})`;
+            }
+
+            function formatLabel(labelEntry) {
+                if (!Array.isArray(labelEntry) || labelEntry.length < 2) {
+                    return "-";
+                }
+
+                return `<strong>${labelEntry[0]}</strong>: ${labelEntry[1]}`;
+            }
+        </script>
+	</body>
+</html>

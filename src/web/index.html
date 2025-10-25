@@ -138,9 +138,21 @@
 				border-bottom: none;
 			}
 
-			tbody tr:hover {
-				background-color: rgba(56, 139, 253, 0.08);
-			}
+                        tbody tr:hover {
+                                background-color: rgba(56, 139, 253, 0.08);
+                        }
+
+                        .container-link {
+                                color: inherit;
+                                font-weight: 600;
+                                text-decoration: none;
+                        }
+
+                        .container-link:hover,
+                        .container-link:focus {
+                                color: #58a6ff;
+                                text-decoration: underline;
+                        }
 
 			code {
 				background-color: rgba(240, 246, 252, 0.1);
@@ -356,26 +368,27 @@
 					return;
 				}
 
-				tbody.innerHTML = containers.map(container => {
-					const id = container.id.substring(0, 12);
-					const name = container.name || "(unnamed)";
-					const image = container.image || "-";
-					const state = container.state || "unknown";
-					const status = container.status || "-";
+                                tbody.innerHTML = containers.map(container => {
+                                        const id = container.id.substring(0, 12);
+                                        const name = container.name || "(unnamed)";
+                                        const image = container.image || "-";
+                                        const state = container.state || "unknown";
+                                        const status = container.status || "-";
+                                        const detailUrl = `/containers?id=${encodeURIComponent(container.id)}`;
 
-					const stateColor = state === "running" ? "#2ea043" :
-									   state === "exited" ? "#8b949e" : "#f85149";
+                                        const stateColor = state === "running" ? "#2ea043" :
+                                                                           state === "exited" ? "#8b949e" : "#f85149";
 
-					return `
-						<tr>
-							<td>${name}</td>
-							<td>${image}</td>
-							<td><code>${id}</code></td>
-							<td style="color: ${stateColor}; font-weight: 600;">${state}</td>
-							<td>${status}</td>
-						</tr>
-					`;
-				}).join("");
+                                        return `
+                                                <tr>
+                                                        <td><a class="container-link" href="${detailUrl}">${name}</a></td>
+                                                        <td>${image}</td>
+                                                        <td><code>${id}</code></td>
+                                                        <td style="color: ${stateColor}; font-weight: 600;">${state}</td>
+                                                        <td>${status}</td>
+                                                </tr>
+                                        `;
+                                }).join("");
 			}
 
 			loadContainers();
