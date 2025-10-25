@@ -207,58 +207,27 @@
 		</header>
 		<main>
 			<section class="page-heading">
-				<h2>Provision virtual machines or containers</h2>
-				<p>Fill in the details below to launch a new compute resource. Once you submit, PuppyCloud will validate configuration, schedule capacity, and stream live status updates back to the dashboard.</p>
+				<h2>Create a container</h2>
+				<p>Fill in the details below to launch a new Docker container. Once you submit, PuppyCloud will create and start the container.</p>
 			</section>
 			<section class="form-section">
-				<form class="form-grid">
+				<form id="createForm" class="form-grid">
 					<label>
-						Resource Name
-						<input type="text" name="name" placeholder="e.g. analytics-runner" required>
+						Container Name
+						<input type="text" name="name" placeholder="e.g. my-web-server">
 					</label>
 					<label>
-						Resource Type
-						<select name="type">
-							<option value="vm">Virtual Machine</option>
-							<option value="container">Container</option>
-						</select>
+						Container Image
+						<input type="text" name="image" placeholder="e.g. nginx:latest" required>
 					</label>
-					<label>
-						Region
-						<select name="region">
-							<option value="us-central">US Central</option>
-							<option value="us-east">US East</option>
-							<option value="eu-west">EU West</option>
-							<option value="ap-southeast">AP Southeast</option>
-						</select>
+					<label style="grid-column: 1 / -1">
+						Command (optional)
+						<input type="text" name="command" placeholder="e.g. npm start">
 					</label>
-					<label>
-						vCPU / Memory
-						<input type="text" name="size" placeholder="e.g. 4 vCPU / 16 GB">
-					</label>
-					<label>
-						Container Image (optional)
-						<input type="text" name="image" placeholder="e.g. ghcr.io/puppycloud/edge:latest">
-					</label>
-					<label>
-						Startup Script
-						<textarea name="script" placeholder="#!/bin/bash&#10;# cloud-init or docker run commands"></textarea>
-					</label>
-					<label>
-						Networking Profile
-						<select name="networking">
-							<option value="public">Public IPv4 &amp; IPv6</option>
-							<option value="private">Private VPC only</option>
-							<option value="hybrid">Hybrid with VPN gateway</option>
-						</select>
-					</label>
-					<label>
-						Scheduled Start
-						<input type="datetime-local" name="start_time">
-					</label>
-					<div class="actions">
+					<div id="statusMessage" style="grid-column: 1 / -1; display: none; padding: 12px; border-radius: 8px; font-weight: 500;"></div>
+					<div class="actions" style="grid-column: 1 / -1">
 						<button type="reset" class="secondary">Reset</button>
-						<button type="submit" class="primary">Create Resource</button>
+						<button type="submit" class="primary" id="submitBtn">Create Container</button>
 					</div>
 				</form>
 			</section>
@@ -267,8 +236,68 @@
 			© <span id="year"></span>PuppyCloud. Secure infrastructure for ambitious teams.
 		</footer>
 		<script>
-			document.getElementById("year").textContent =
-				new Date().getFullYear();
+			document.getElementById("year").textContent = new Date().getFullYear();
+
+			const form = document.getElementById("createForm");
+			const submitBtn = document.getElementById("submitBtn");
+			const statusMessage = document.getElementById("statusMessage");
+
+			function showMessage(message, isError = false) {
+				statusMessage.textContent = message;
+				statusMessage.style.display = "block";
+				statusMessage.style.backgroundColor = isError
+					? "rgba(248, 81, 73, 0.2)"
+					: "rgba(46, 160, 67, 0.2)";
+				statusMessage.style.color = isError ? "#f85149" : "#2ea043";
+				statusMessage.style.border = isError
+					? "1px solid rgba(248, 81, 73, 0.4)"
+					: "1px solid rgba(46, 160, 67, 0.4)";
+			}
+
+			form.addEventListener("submit", async (e) => {
+				e.preventDefault();
+
+				const formData = new FormData(form);
+				const data = {
+					name: formData.get("name"),
+					image: formData.get("image"),
+					command: formData.get("command") || undefined
+				};
+
+				submitBtn.disabled = true;
+				submitBtn.textContent = "Creating...";
+				statusMessage.style.display = "none";
+
+				try {
+					const response = await fetch("/api/containers", {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json"
+						},
+						body: JSON.stringify(data)
+					});
+
+					const result = await response.json();
+
+					if (response.ok) {
+						showMessage(`Container created successfully! ID: ${result.instance.id}`);
+						setTimeout(() => {
+							window.location.href = "/";
+						}, 2000);
+					} else {
+						showMessage(result.error || "Failed to create container", true);
+						submitBtn.disabled = false;
+						submitBtn.textContent = "Create Container";
+					}
+				} catch (error) {
+					showMessage(
+						error instanceof Error ? error.message : "Network error occurred",
+						true
+					);
+					submitBtn.disabled = false;
+					submitBtn.textContent = "Create Container";
+				}
+			});
 		</script>
 	</body>
 </html>
