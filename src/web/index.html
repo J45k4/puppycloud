@@ -142,6 +142,14 @@
 				background-color: rgba(56, 139, 253, 0.08);
 			}
 
+			code {
+				background-color: rgba(240, 246, 252, 0.1);
+				padding: 2px 6px;
+				border-radius: 4px;
+				font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+				font-size: 0.85em;
+			}
+
 			.cta-section {
 				display: grid;
 				gap: 20px;
@@ -235,14 +243,14 @@
 				</section>
 				<div class="card-grid">
 					<article class="card">
-						<span>Compute Instances</span>
-						<strong>12</strong>
-						<p>6 running • 4 sleeping • 2 paused</p>
+						<span>Containers</span>
+						<strong id="totalContainers">-</strong>
+						<p id="containerStats">Loading...</p>
 					</article>
 					<article class="card">
-						<span>Containers</span>
-						<strong>28</strong>
-						<p>18 active • 6 updating • 4 queued</p>
+						<span>Running Containers</span>
+						<strong id="runningContainers">-</strong>
+						<p>Currently active</p>
 					</article>
 					<article class="card">
 						<span>CPU Utilization</span>
@@ -257,55 +265,20 @@
 				</div>
 			</section>
 			<section id="resources">
-				<h2>Active Resources</h2>
+				<h2>Containers</h2>
 				<table>
 					<thead>
 						<tr>
 							<th>Name</th>
-							<th>Type</th>
-							<th>Region</th>
+							<th>Image</th>
+							<th>ID</th>
+							<th>State</th>
 							<th>Status</th>
-							<th>CPU</th>
-							<th>Memory</th>
-							<th>Last Activity</th>
 						</tr>
 					</thead>
-					<tbody>
+					<tbody id="containersList">
 						<tr>
-							<td>api-core-01</td>
-							<td>Virtual Machine</td>
-							<td>us-central</td>
-							<td>Running</td>
-							<td>8 vCPU</td>
-							<td>32 GB</td>
-							<td>2 minutes ago</td>
-						</tr>
-						<tr>
-							<td>batch-worker-23</td>
-							<td>Container</td>
-							<td>eu-west</td>
-							<td>Updating</td>
-							<td>4 vCPU</td>
-							<td>8 GB</td>
-							<td>5 minutes ago</td>
-						</tr>
-						<tr>
-							<td>ml-lab-gpu</td>
-							<td>Virtual Machine</td>
-							<td>us-east</td>
-							<td>Paused</td>
-							<td>16 vCPU • 1 GPU</td>
-							<td>64 GB</td>
-							<td>30 minutes ago</td>
-						</tr>
-						<tr>
-							<td>edge-proxy</td>
-							<td>Container</td>
-							<td>ap-southeast</td>
-							<td>Running</td>
-							<td>2 vCPU</td>
-							<td>2 GB</td>
-							<td>Just now</td>
+							<td colspan="5" style="text-align: center; padding: 32px;">Loading containers...</td>
 						</tr>
 					</tbody>
 				</table>
@@ -322,8 +295,91 @@
 			© <span id="year"></span>PuppyCloud. Secure infrastructure for ambitious teams.
 		</footer>
 		<script>
-			document.getElementById("year").textContent =
-				new Date().getFullYear();
+			document.getElementById("year").textContent = new Date().getFullYear();
+
+			async function loadContainers() {
+				try {
+					const response = await fetch("/api/containers");
+					const data = await response.json();
+
+					if (!response.ok) {
+						throw new Error(data.error || "Failed to load containers");
+					}
+
+					const containers = data.containers;
+					updateStats(containers);
+					displayContainers(containers);
+				} catch (error) {
+					console.error("Error loading containers:", error);
+					document.getElementById("containersList").innerHTML = `
+						<tr>
+							<td colspan="5" style="text-align: center; padding: 32px; color: #f85149;">
+								Error loading containers: ${error.message}
+							</td>
+						</tr>
+					`;
+					document.getElementById("totalContainers").textContent = "Error";
+					document.getElementById("containerStats").textContent = "Failed to load";
+					document.getElementById("runningContainers").textContent = "Error";
+				}
+			}
+
+			function updateStats(containers) {
+				const total = containers.length;
+				const running = containers.filter(c => c.state === "running").length;
+				const exited = containers.filter(c => c.state === "exited").length;
+				const other = total - running - exited;
+
+				document.getElementById("totalContainers").textContent = total;
+				document.getElementById("runningContainers").textContent = running;
+
+				const parts = [];
+				if (running > 0) parts.push(`${running} running`);
+				if (exited > 0) parts.push(`${exited} exited`);
+				if (other > 0) parts.push(`${other} other`);
+
+				document.getElementById("containerStats").textContent =
+					parts.length > 0 ? parts.join(" • ") : "No containers";
+			}
+
+			function displayContainers(containers) {
+				const tbody = document.getElementById("containersList");
+
+				if (containers.length === 0) {
+					tbody.innerHTML = `
+						<tr>
+							<td colspan="5" style="text-align: center; padding: 32px;">
+								No containers found. <a href="/create">Create one now</a>
+							</td>
+						</tr>
+					`;
+					return;
+				}
+
+				tbody.innerHTML = containers.map(container => {
+					const id = container.id.substring(0, 12);
+					const name = container.name || "(unnamed)";
+					const image = container.image || "-";
+					const state = container.state || "unknown";
+					const status = container.status || "-";
+
+					const stateColor = state === "running" ? "#2ea043" :
+									   state === "exited" ? "#8b949e" : "#f85149";
+
+					return `
+						<tr>
+							<td>${name}</td>
+							<td>${image}</td>
+							<td><code>${id}</code></td>
+							<td style="color: ${stateColor}; font-weight: 600;">${state}</td>
+							<td>${status}</td>
+						</tr>
+					`;
+				}).join("");
+			}
+
+			loadContainers();
+			setInterval(loadContainers, 5000);
 		</script>
 	</body>
 </html>

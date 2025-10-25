@@ -5,6 +5,23 @@ import { createDockerBackend } from "./backends/docker"
 
 const dockerBackend = createDockerBackend()
 
+async function handleListContainers(req: Request): Promise<Response> {
+	try {
+		console.log("📋 Listing containers")
+		const containers = await dockerBackend.listInstances({ all: true })
+		console.log(`✅ Found ${containers.length} containers`)
+		return Response.json({ containers })
+	} catch (error) {
+		console.error("❌ Error listing containers:", error)
+		return Response.json(
+			{
+				error: error instanceof Error ? error.message : "Failed to list containers"
+			},
+			{ status: 500 }
+		)
+	}
+}
+
 async function handleCreateContainer(req: Request): Promise<Response> {
 	try {
 		const body = await req.json()
@@ -57,6 +74,7 @@ Bun.serve({
 		"/": index,
 		"/create": create,
 		"/api/containers": {
+			GET: handleListContainers,
 			POST: handleCreateContainer
 		},
 		"/mcp": {
