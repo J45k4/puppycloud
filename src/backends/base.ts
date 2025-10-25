@@ -40,6 +40,14 @@ export interface BackendLogOptions {
 	tail?: number | "all"
 }
 
+export interface BackendExecOptions {
+	workingDirectory?: string
+}
+
+export interface BackendExecResult {
+	output: string
+}
+
 export interface Backend {
 	listInstances(options?: BackendListOptions): Promise<BackendInstanceInfo[]>
 	createInstance(options: BackendCreateOptions): Promise<BackendInstanceInfo>
@@ -48,4 +56,5 @@ export interface Backend {
 	removeInstance(id: string, options?: BackendRemoveOptions): Promise<void>
 	inspectInstance(id: string): Promise<Record<string, unknown>>
 	getInstanceLogs(id: string, options?: BackendLogOptions): Promise<string>
+	execInstanceCommand(id: string, command: string[], options?: BackendExecOptions): Promise<BackendExecResult>
 }

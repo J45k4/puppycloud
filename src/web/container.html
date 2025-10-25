@@ -280,6 +280,115 @@
                 font-size: 0.95rem;
             }
 
+            .shell-panel {
+                display: grid;
+                gap: 16px;
+            }
+
+            .shell-history {
+                background-color: rgba(240, 246, 252, 0.05);
+                border-radius: 12px;
+                padding: 16px;
+                min-height: 160px;
+                max-height: 280px;
+                overflow-y: auto;
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+                font-size: 0.9rem;
+                line-height: 1.45;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .shell-placeholder {
+                opacity: 0.65;
+            }
+
+            .shell-entry {
+                display: grid;
+                gap: 6px;
+            }
+
+            .shell-entry-command {
+                color: rgba(88, 166, 255, 0.9);
+            }
+
+            .shell-entry-output {
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
+            .shell-entry-error {
+                color: #f85149;
+            }
+
+            .shell-form {
+                display: grid;
+                gap: 10px;
+            }
+
+            .shell-input-row {
+                display: grid;
+                grid-template-columns: auto 1fr auto;
+                gap: 12px;
+                align-items: center;
+            }
+
+            .shell-prompt {
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+                opacity: 0.7;
+            }
+
+            .shell-input {
+                padding: 10px 14px;
+                border-radius: 10px;
+                border: 1px solid rgba(240, 246, 252, 0.12);
+                background-color: rgba(13, 17, 23, 0.9);
+                color: inherit;
+                font: inherit;
+            }
+
+            .shell-input:focus {
+                outline: none;
+                border-color: rgba(88, 166, 255, 0.65);
+                box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+            }
+
+            .shell-button {
+                padding: 10px 18px;
+                border-radius: 999px;
+                border: none;
+                font-weight: 600;
+                cursor: pointer;
+                background: linear-gradient(135deg, #388bfd 0%, #1f6feb 100%);
+                color: white;
+                transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+            }
+
+            .shell-button:hover,
+            .shell-button:focus {
+                transform: translateY(-1px);
+                box-shadow: 0 12px 24px rgba(56, 139, 253, 0.35);
+                outline: none;
+            }
+
+            .shell-button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+
+            .shell-status {
+                margin: 0;
+                font-size: 0.85rem;
+                color: rgba(240, 246, 252, 0.7);
+            }
+
+            .shell-status.is-error {
+                color: #f85149;
+            }
+
             pre {
                 background-color: rgba(240, 246, 252, 0.05);
                 border-radius: 12px;
@@ -406,6 +515,26 @@
 				</div>
 			</section>
 			<section class="detail-section">
+				<h2>Shell access</h2>
+				<div class="shell-panel">
+					<p id="shellStatus" class="shell-status">Shell commands execute inside the running container.</p>
+					<div id="shellHistory" class="shell-history">
+						<div id="shellPlaceholder" class="shell-placeholder">Run a command to see output here.</div>
+					</div>
+					<form id="shellForm" class="shell-form">
+						<label for="shellCommand">Command</label>
+						<div class="shell-input-row">
+							<span class="shell-prompt">$</span>
+							<input id="shellCommand" class="shell-input" type="text" name="command" placeholder="e.g. ls -al" autocomplete="off" spellcheck="false">
+							<button id="shellSubmit" class="shell-button" type="submit">Run</button>
+						</div>
+						<p class="shell-status">
+							Commands run via <code>/bin/sh -lc</code>. Use ↑ and ↓ to browse history.
+						</p>
+					</form>
+				</div>
+			</section>
+			<section class="detail-section">
 				<h2>Raw inspect data</h2>
 				<pre id="rawJson">Loading…</pre>
 			</section>
@@ -417,6 +546,140 @@
             document.getElementById("year").textContent = new Date().getFullYear();
 
             const statusMessage = document.getElementById("statusMessage");
+            const shellHistoryElement = document.getElementById("shellHistory");
+            const shellStatusElement = document.getElementById("shellStatus");
+            const shellForm = document.getElementById("shellForm");
+            const shellCommandInput = document.getElementById("shellCommand");
+            const shellSubmitButton = document.getElementById("shellSubmit");
+            const shellCommandHistory = [];
+            let shellHistoryCursor = 0;
+            let activeShellContainerId = null;
+
+            resetShellHistory();
+            updateShellAvailability(null);
+
+            if (shellCommandInput) {
+                shellCommandInput.addEventListener("keydown", (event) => {
+                    if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        if (shellCommandHistory.length === 0) {
+                            return;
+                        }
+                        shellHistoryCursor = Math.max(0, shellHistoryCursor - 1);
+                        shellCommandInput.value = shellCommandHistory[shellHistoryCursor] ?? "";
+                        queueMicrotask(() => {
+                            const length = shellCommandInput.value.length;
+                            shellCommandInput.setSelectionRange(length, length);
+                        });
+                    } else if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        if (shellCommandHistory.length === 0) {
+                            shellCommandInput.value = "";
+                            return;
+                        }
+                        shellHistoryCursor = Math.min(shellCommandHistory.length, shellHistoryCursor + 1);
+                        if (shellHistoryCursor === shellCommandHistory.length) {
+                            shellCommandInput.value = "";
+                        } else {
+                            shellCommandInput.value = shellCommandHistory[shellHistoryCursor] ?? "";
+                            queueMicrotask(() => {
+                                const length = shellCommandInput.value.length;
+                                shellCommandInput.setSelectionRange(length, length);
+                            });
+                        }
+                    }
+                });
+            }
+
+            if (shellForm && shellCommandInput && shellSubmitButton && shellHistoryElement) {
+                shellForm.addEventListener("submit", async (event) => {
+                    event.preventDefault();
+                    if (!activeShellContainerId || shellCommandInput.disabled) {
+                        return;
+                    }
+
+                    const command = shellCommandInput.value.trim();
+                    if (!command) {
+                        return;
+                    }
+
+                    shellCommandHistory.push(command);
+                    shellHistoryCursor = shellCommandHistory.length;
+
+                    shellCommandInput.value = "";
+
+                    const inputWasDisabled = shellCommandInput.disabled;
+                    const buttonWasDisabled = shellSubmitButton.disabled;
+                    if (!inputWasDisabled) {
+                        shellCommandInput.disabled = true;
+                    }
+                    if (!buttonWasDisabled) {
+                        shellSubmitButton.disabled = true;
+                    }
+
+                    const entry = document.createElement("div");
+                    entry.className = "shell-entry";
+
+                    const commandLine = document.createElement("div");
+                    commandLine.className = "shell-entry-command";
+                    commandLine.textContent = `$ ${command}`;
+                    entry.appendChild(commandLine);
+
+                    const outputLine = document.createElement("div");
+                    outputLine.className = "shell-entry-output";
+                    outputLine.textContent = "Running…";
+                    entry.appendChild(outputLine);
+
+                    removeShellPlaceholder();
+                    shellHistoryElement.appendChild(entry);
+                    shellHistoryElement.scrollTop = shellHistoryElement.scrollHeight;
+
+                    try {
+                        const response = await fetch("/api/container/exec", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                id: activeShellContainerId,
+                                command
+                            })
+                        });
+                        let payload;
+                        try {
+                            payload = await response.json();
+                        } catch {
+                            payload = undefined;
+                        }
+
+                        if (!response.ok) {
+                            const message = payload && typeof payload === "object" && typeof payload.error === "string"
+                                ? payload.error
+                                : `Command failed with status ${response.status}`;
+                            throw new Error(message);
+                        }
+
+                        const output = payload && typeof payload === "object" && typeof payload.output === "string"
+                            ? payload.output
+                            : "";
+                        outputLine.textContent = output && output.trim().length > 0 ? output : "(no output)";
+                        outputLine.classList.remove("shell-entry-error");
+                    } catch (error) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        outputLine.textContent = message;
+                        outputLine.classList.add("shell-entry-error");
+                    } finally {
+                        if (!inputWasDisabled) {
+                            shellCommandInput.disabled = false;
+                        }
+                        if (!buttonWasDisabled) {
+                            shellSubmitButton.disabled = false;
+                        }
+                        shellHistoryElement.scrollTop = shellHistoryElement.scrollHeight;
+                        shellCommandInput.focus();
+                    }
+                });
+            }
             const params = new URLSearchParams(window.location.search);
             const requestedId = params.get("id");
 
@@ -456,6 +719,9 @@
                 const state = container?.state || "unknown";
                 const health = container?.healthStatus || "unknown";
                 const command = Array.isArray(container?.command) ? container.command.join(" ") : container?.command || "-";
+
+                prepareShellForContainer(container?.id || fallbackId);
+                updateShellAvailability(state);
 
                 document.getElementById("containerName").textContent = `Container ${shortId}`;
                 document.getElementById("containerDescription").textContent = `Detailed properties for ${name}`;
@@ -504,6 +770,12 @@
             }
 
             function resetView() {
+                activeShellContainerId = null;
+                shellCommandHistory.length = 0;
+                shellHistoryCursor = 0;
+                resetShellHistory();
+                updateShellAvailability(null);
+
                 document.getElementById("containerName").textContent = "Container";
                 document.getElementById("containerDescription").textContent = "Unable to load container details.";
                 document.getElementById("summaryName").textContent = "-";
@@ -598,6 +870,57 @@
                 const writable = mount.rw === false ? "read-only" : "read-write";
                 const type = mount.type ? `${mount.type} • ` : "";
                 return `${type}${source} → ${destination} (${mode || "default"}, ${writable})`;
+            }
+
+            function prepareShellForContainer(containerId) {
+                if (!containerId) {
+                    return;
+                }
+
+                if (activeShellContainerId !== containerId) {
+                    activeShellContainerId = containerId;
+                    shellCommandHistory.length = 0;
+                    shellHistoryCursor = 0;
+                    resetShellHistory();
+                }
+            }
+
+            function resetShellHistory() {
+                if (!shellHistoryElement) {
+                    return;
+                }
+
+                shellHistoryElement.innerHTML = "";
+                const placeholder = document.createElement("div");
+                placeholder.id = "shellPlaceholder";
+                placeholder.className = "shell-placeholder";
+                placeholder.textContent = "Run a command to see output here.";
+                shellHistoryElement.appendChild(placeholder);
+            }
+
+            function removeShellPlaceholder() {
+                const placeholder = document.getElementById("shellPlaceholder");
+                if (placeholder) {
+                    placeholder.remove();
+                }
+            }
+
+            function updateShellAvailability(state) {
+                const normalized = typeof state === "string" ? state.toLowerCase() : "";
+                const isInteractive = normalized === "running" || normalized === "restarting";
+
+                if (shellCommandInput) {
+                    shellCommandInput.disabled = !isInteractive;
+                }
+                if (shellSubmitButton) {
+                    shellSubmitButton.disabled = !isInteractive;
+                }
+                if (shellStatusElement) {
+                    shellStatusElement.textContent = isInteractive
+                        ? "Shell commands execute inside the running container."
+                        : "Shell is available only while the container is running.";
+                    shellStatusElement.classList.toggle("is-error", !isInteractive);
+                }
             }
 
             function formatLabel(labelEntry) {

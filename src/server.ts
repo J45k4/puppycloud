@@ -258,6 +258,81 @@ async function handleGetContainerDetails(req: Request): Promise<Response> {
 	}
 }
 
+async function handleExecContainerCommand(req: Request): Promise<Response> {
+	try {
+		const rawBody = await req.json()
+		const body = asRecord(rawBody)
+		if (!body) {
+			return Response.json({ error: "Request body must be an object" }, { status: 400 })
+		}
+
+		const id = asString(body.id)
+		if (!id) {
+			return Response.json({ error: "Container id is required" }, { status: 400 })
+		}
+
+		const commandValue = body.command
+		let commandString: string | undefined
+		let commandParts: string[] | undefined
+		if (typeof commandValue === "string") {
+			const trimmed = commandValue.trim()
+			if (trimmed.length > 0) {
+				commandString = trimmed
+			}
+		} else if (Array.isArray(commandValue)) {
+			const normalized: string[] = []
+			for (const part of commandValue) {
+				if (typeof part === "string" && part.trim().length > 0) {
+					normalized.push(part.trim())
+				}
+			}
+			if (normalized.length > 0) {
+				commandParts = normalized
+			}
+		}
+
+		if (!commandString && !commandParts) {
+			return Response.json({ error: "A command is required" }, { status: 400 })
+		}
+
+		const workingDirectory = asString(body.workingDirectory) ?? undefined
+		const shellPreferred = body.shell !== false
+		let finalCommand: string[] = []
+		if (commandParts) {
+			finalCommand = commandParts
+		} else if (commandString) {
+			if (shellPreferred) {
+				finalCommand = ["/bin/sh", "-lc", commandString]
+			} else {
+				finalCommand = commandString
+					.split(" ")
+					.map((segment) => segment.trim())
+					.filter((segment) => segment.length > 0)
+			}
+		}
+
+		if (!finalCommand || finalCommand.length === 0) {
+			return Response.json({ error: "A command is required" }, { status: 400 })
+		}
+
+		console.log(`🐚 Exec command in container ${id}: ${JSON.stringify(finalCommand)}`)
+		const result = await dockerBackend.execInstanceCommand(id, finalCommand, {
+			workingDirectory
+		})
+		return Response.json({ output: result.output ?? "" })
+	} catch (error) {
+		console.error("❌ Error executing command in container:", error)
+		return Response.json(
+			{
+				error: error instanceof BackendRequestError ? error.message : error instanceof Error ? error.message : "Failed to execute command in container"
+			},
+			{
+				status: error instanceof BackendRequestError ? (error.statusCode ?? 500) : 500
+			}
+		)
+	}
+}
+
 Bun.serve({
 	port: 3312,
 	routes: {
@@ -270,6 +345,9 @@ Bun.serve({
 		},
 		"/api/container": {
 			GET: handleGetContainerDetails
+		},
+		"/api/container/exec": {
+			POST: handleExecContainerCommand
 		},
 		"/mcp": {
 			POST: handleMcpRequest

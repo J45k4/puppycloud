@@ -1,7 +1,7 @@
 import http from "node:http"
 import { Buffer } from "node:buffer"
 import { URLSearchParams } from "node:url"
-import type { Backend, BackendCreateOptions, BackendInstanceInfo, BackendListOptions, BackendLogOptions, BackendRemoveOptions, BackendStopOptions } from "./base"
+import type { Backend, BackendCreateOptions, BackendExecOptions, BackendExecResult, BackendInstanceInfo, BackendListOptions, BackendLogOptions, BackendRemoveOptions, BackendStopOptions } from "./base"
 import { BackendRequestError } from "./errors"
 
 export interface DockerBackendOptions {
@@ -21,6 +21,10 @@ interface DockerListContainer {
 interface DockerCreateResponse {
 	Id: string
 	Warnings?: string[] | null
+}
+
+interface DockerExecCreateResponse {
+	Id: string
 }
 
 interface DockerErrorResponse {
@@ -149,6 +153,42 @@ export class DockerBackend implements Backend {
 			}
 		})
 		return response.bodyText
+	}
+
+	async execInstanceCommand(id: string, command: string[], options: BackendExecOptions = {}): Promise<BackendExecResult> {
+		if (!Array.isArray(command) || command.length === 0) {
+			throw new BackendRequestError("A command is required to exec into the container", 400)
+		}
+
+		const createResponse = await this.request({
+			method: "POST",
+			path: `/containers/${encodeURIComponent(id)}/exec`,
+			body: {
+				AttachStdout: true,
+				AttachStderr: true,
+				Tty: true,
+				Cmd: command,
+				WorkingDir: options.workingDirectory
+			}
+		})
+
+		const execInfo = this.parseJson<DockerExecCreateResponse>(createResponse)
+		if (!execInfo?.Id) {
+			throw new BackendRequestError("Docker did not return an exec identifier", 500, execInfo)
+		}
+
+		const startResponse = await this.request({
+			method: "POST",
+			path: `/exec/${encodeURIComponent(execInfo.Id)}/start`,
+			body: {
+				Detach: false,
+				Tty: true
+			},
+			headers: {
+				Accept: "application/vnd.docker.raw-stream"
+			}
+		})
+		return { output: startResponse.bodyText }
 	}
 
 	async pullImage(image: string): Promise<void> {

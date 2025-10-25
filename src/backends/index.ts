@@ -1,6 +1,8 @@
 export type {
 	Backend,
 	BackendCreateOptions,
+	BackendExecOptions,
+	BackendExecResult,
 	BackendInstanceInfo,
 	BackendListOptions,
 	BackendLogOptions,

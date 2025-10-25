@@ -55,7 +55,7 @@ describe("DockerBackend", () => {
 				)
 				return
 			}
-			if (req.method === "POST" && req.url?.endsWith("/start")) {
+			if (req.method === "POST" && req.url?.startsWith("/containers/") && req.url.endsWith("/start")) {
 				res.statusCode = 204
 				res.end()
 				return
@@ -78,6 +78,16 @@ describe("DockerBackend", () => {
 			if (req.method === "GET" && req.url?.startsWith("/containers/new123/logs")) {
 				res.setHeader("Content-Type", "text/plain")
 				res.end("log-line-1\nlog-line-2\n")
+				return
+			}
+			if (req.method === "POST" && req.url?.startsWith("/containers/new123/exec")) {
+				res.setHeader("Content-Type", "application/json")
+				res.end(JSON.stringify({ Id: "exec-123" }))
+				return
+			}
+			if (req.method === "POST" && req.url?.startsWith("/exec/exec-123/start")) {
+				res.setHeader("Content-Type", "application/vnd.docker.raw-stream")
+				res.end("command-output\n")
 				return
 			}
 			res.statusCode = 404
@@ -139,7 +149,10 @@ describe("DockerBackend", () => {
 		const logs = await backend.getInstanceLogs("new123", { stdout: true, stderr: false, tail: 10 })
 		expect(logs).toContain("log-line-1")
 
-		expect(requests.map((entry) => entry.method)).toEqual(["GET", "POST", "POST", "POST", "DELETE", "GET", "GET"])
+		const execResult = await backend.execInstanceCommand("new123", ["/bin/sh", "-c", "echo ok"])
+		expect(execResult.output).toContain("command-output")
+
+		expect(requests.map((entry) => entry.method)).toEqual(["GET", "POST", "POST", "POST", "DELETE", "GET", "GET", "POST", "POST"])
 
 		const createRequest = requests.find((entry) => entry.url.startsWith("/containers/create"))
 		expect(createRequest).toBeDefined()
