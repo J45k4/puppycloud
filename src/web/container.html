@@ -348,6 +348,8 @@
                 border: 1px solid rgba(240, 246, 252, 0.08);
                 overflow: hidden;
                 background-color: rgba(13, 17, 23, 0.6);
+                max-height: 400px;
+                overflow-y: auto;
             }
 
             .file-browser-table {
@@ -720,8 +722,11 @@
 				</div>
 			</section>
 			<section class="detail-section">
-				<h2>Raw inspect data</h2>
-				<pre id="rawJson">Loading…</pre>
+				<button id="toggleRawDataBtn" class="file-browser-button" type="button">View raw data</button>
+				<div id="rawDataContainer" style="display: none;">
+					<h2>Raw inspect data</h2>
+					<pre id="rawJson">Loading…</pre>
+				</div>
 			</section>
 		</main>
 		<footer>
@@ -755,6 +760,17 @@
             resetShellHistory();
             updateShellAvailability(null);
             resetFileBrowser();
+
+            const toggleRawDataBtn = document.getElementById("toggleRawDataBtn");
+            const rawDataContainer = document.getElementById("rawDataContainer");
+
+            if (toggleRawDataBtn && rawDataContainer) {
+                toggleRawDataBtn.addEventListener("click", () => {
+                    const isHidden = rawDataContainer.style.display === "none";
+                    rawDataContainer.style.display = isHidden ? "block" : "none";
+                    toggleRawDataBtn.textContent = isHidden ? "Hide raw data" : "View raw data";
+                });
+            }
 
             if (shellCommandInput) {
                 shellCommandInput.addEventListener("keydown", (event) => {
