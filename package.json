@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "bun --watch src/main.ts",
 		"start": "bun src/main.ts",
+		"build": "bun build src/main.ts --compile --outfile puppycloud",
 		"lint": "bunx biome lint .",
 		"lint-fix": "bunx biome lint . --write",
 		"format": "bunx biome format .",
