@@ -1,11 +1,12 @@
 import index from "./web/index.html"
 import create from "./web/create.html"
 import containerPage from "./web/container.html"
+import { handleGetFileContent } from "./web/api"
 import { handleMcpRequest } from "./mcp"
 import { createDockerBackend } from "./backends/docker"
 import { BackendRequestError } from "./backends/errors"
 
-const dockerBackend = createDockerBackend()
+export const dockerBackend = createDockerBackend()
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
 	if (!value || typeof value !== "object") {
@@ -55,13 +56,14 @@ function asStringRecord(value: unknown): Record<string, string> | undefined {
 }
 
 async function handleListContainers(_req: Request): Promise<Response> {
+	console.log("Received request to list containers");
 	try {
-		console.log("📋 Listing containers")
+		console.log("Listing containers");
 		const containers = await dockerBackend.listInstances({ all: true })
-		console.log(`✅ Found ${containers.length} containers`)
+		console.log(`Found ${containers.length} containers`);
 		return Response.json({ containers })
 	} catch (error) {
-		console.error("❌ Error listing containers:", error)
+		console.error("Failed to list containers:", error);
 		return Response.json(
 			{
 				error: error instanceof Error ? error.message : "Failed to list containers"
@@ -72,19 +74,20 @@ async function handleListContainers(_req: Request): Promise<Response> {
 }
 
 async function handleCreateContainer(req: Request): Promise<Response> {
+	console.log("Received request to create a container");
 	try {
 		const rawBody = await req.json()
-		console.log("📥 Received container creation request:", rawBody)
+		console.log("Received container creation request:", rawBody)
 
 		const body = asRecord(rawBody)
 		if (!body) {
-			console.log("❌ Validation failed: Body must be an object")
+			console.log("Validation failed: Body must be an object")
 			return Response.json({ error: "Request body must be an object" }, { status: 400 })
 		}
 
 		const image = asString(body.image)
 		if (!image) {
-			console.log("❌ Validation failed: Image is required")
+			console.log("Validation failed: Image is required")
 			return Response.json({ error: "Image is required" }, { status: 400 })
 		}
 
@@ -118,25 +121,25 @@ async function handleCreateContainer(req: Request): Promise<Response> {
 			workingDirectory
 		}
 
-		console.log(`🔄 Pulling image: ${image}`)
+		console.log(`Pulling image: ${image}`)
 		await dockerBackend.pullImage(image)
-		console.log(`✅ Image pulled successfully: ${image}`)
+		console.log(`Image pulled successfully: ${image}`)
 
-		console.log(`🔨 Creating container${name ? ` with name: ${name}` : ""}`)
+		console.log(`Creating container${name ? ` with name: ${name}` : ""}`)
 		const instance = await dockerBackend.createInstance(createOptions)
-		console.log(`✅ Container created with ID: ${instance.id}`)
+		console.log(`Container created with ID: ${instance.id}`)
 
-		console.log(`▶️  Starting container: ${instance.id}`)
+		console.log(`Starting container: ${instance.id}`)
 		await dockerBackend.startInstance(instance.id)
-		console.log(`✅ Container started successfully: ${instance.id}`)
+		console.log(`Container started successfully: ${instance.id}`)
 
-		console.log("🎉 Container creation completed successfully")
+		console.log("Container creation completed successfully")
 		return Response.json({
 			success: true,
 			instance
 		})
 	} catch (error) {
-		console.error("❌ Error creating container:", error)
+		console.error("Error creating container:", error)
 		return Response.json(
 			{
 				error: error instanceof Error ? error.message : "Failed to create container"
@@ -147,15 +150,17 @@ async function handleCreateContainer(req: Request): Promise<Response> {
 }
 
 async function handleGetContainerDetails(req: Request): Promise<Response> {
+	console.log("Received request to get container details");
 	const url = new URL(req.url)
 	const id = url.searchParams.get("id")
 
 	if (!id) {
+		console.error("Container id is required");
 		return Response.json({ error: "Container id is required" }, { status: 400 })
 	}
 
 	try {
-		console.log(`🔍 Inspecting container: ${id}`)
+		console.log(`Inspecting container: ${id}`)
 		const details = await dockerBackend.inspectInstance(id)
 
 		const containerId = asString(details.Id) ?? id
@@ -229,6 +234,7 @@ async function handleGetContainerDetails(req: Request): Promise<Response> {
 		const normalizedPorts = ports.length > 0 ? ports : undefined
 		const normalizedMounts = mounts.length > 0 ? mounts : undefined
 
+		console.log("Successfully fetched container details");
 		return Response.json({
 			container: {
 				id: containerId,
@@ -249,7 +255,7 @@ async function handleGetContainerDetails(req: Request): Promise<Response> {
 			}
 		})
 	} catch (error) {
-		console.error("❌ Error inspecting container:", error)
+		console.error("Error inspecting container:", error)
 		if (error instanceof BackendRequestError && error.statusCode === 404) {
 			return Response.json({ error: "Container not found" }, { status: 404 })
 		}
@@ -259,15 +265,18 @@ async function handleGetContainerDetails(req: Request): Promise<Response> {
 }
 
 async function handleExecContainerCommand(req: Request): Promise<Response> {
+	console.log("Received request to execute a command in a container");
 	try {
 		const rawBody = await req.json()
 		const body = asRecord(rawBody)
 		if (!body) {
+			console.error("Request body must be an object");
 			return Response.json({ error: "Request body must be an object" }, { status: 400 })
 		}
 
 		const id = asString(body.id)
 		if (!id) {
+			console.error("Container id is required");
 			return Response.json({ error: "Container id is required" }, { status: 400 })
 		}
 
@@ -292,6 +301,7 @@ async function handleExecContainerCommand(req: Request): Promise<Response> {
 		}
 
 		if (!commandString && !commandParts) {
+			console.error("A command is required");
 			return Response.json({ error: "A command is required" }, { status: 400 })
 		}
 
@@ -312,16 +322,18 @@ async function handleExecContainerCommand(req: Request): Promise<Response> {
 		}
 
 		if (!finalCommand || finalCommand.length === 0) {
+			console.error("A command is required");
 			return Response.json({ error: "A command is required" }, { status: 400 })
 		}
 
-		console.log(`🐚 Exec command in container ${id}: ${JSON.stringify(finalCommand)}`)
+		console.log(`Executing command in container ${id}: ${JSON.stringify(finalCommand)}`)
 		const result = await dockerBackend.execInstanceCommand(id, finalCommand, {
 			workingDirectory
 		})
+		console.log("Successfully executed command");
 		return Response.json({ output: result.output ?? "" })
 	} catch (error) {
-		console.error("❌ Error executing command in container:", error)
+		console.error("Error executing command in container:", error)
 		return Response.json(
 			{
 				error: error instanceof BackendRequestError ? error.message : error instanceof Error ? error.message : "Failed to execute command in container"
@@ -334,19 +346,21 @@ async function handleExecContainerCommand(req: Request): Promise<Response> {
 }
 
 async function handleBrowseContainerPath(req: Request): Promise<Response> {
+	console.log("Received request to browse a container path");
 	const url = new URL(req.url)
 	const id = url.searchParams.get("id")
 	const path = url.searchParams.get("path") ?? "/"
 
-	console.log(`browse container ${id} at path ${path}`)
+	console.log(`Browsing container ${id} at path ${path}`)
 
 	if (!id) {
+		console.error("Container id is required");
 		return Response.json({ error: "Container id is required" }, { status: 400 })
 	}
 
 	try {
 		const info = await dockerBackend.getInstancePath(id, path)
-		console.log(`container ${id} at path ${path} info`, info)
+		console.log(`Successfully browsed container ${id} at path ${path}`)
 		return Response.json({
 			path: info.path,
 			type: info.type,
@@ -358,7 +372,7 @@ async function handleBrowseContainerPath(req: Request): Promise<Response> {
 			entries: info.entries
 		})
 	} catch (error) {
-		console.error("❌ Error browsing container path:", error)
+		console.error("Error browsing container path:", error)
 		if (error instanceof BackendRequestError && error.statusCode === 404) {
 			return Response.json({ error: "Path not found" }, { status: 404 })
 		}
@@ -392,6 +406,9 @@ Bun.serve({
 		},
 		"/api/container/exec": {
 			POST: handleExecContainerCommand
+		},
+		"/api/file-content": {
+			GET: handleGetFileContent
 		},
 		"/mcp": {
 			POST: handleMcpRequest

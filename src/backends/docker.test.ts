@@ -81,6 +81,7 @@ describe("DockerBackend", () => {
 	const packageJsonContent = '{"name":"demo"}\n'
 	const fallbackFileContent = "fallback file contents\n"
 	const fallbackDirectoryFileContent = "hello fallback\n"
+	const headFailureFileContent = "head failure fallback\n"
 	const prefixlessDirectoryFileContent = "prefixless top-level file\n"
 	const prefixlessNestedFileContent = "prefixless nested file\n"
 	const dotSegmentFileContent = "dot-segment file\n"
@@ -202,6 +203,20 @@ describe("DockerBackend", () => {
 							content: fallbackDirectoryFileContent
 						}
 					])
+					res.setHeader("Content-Type", "application/x-tar")
+					res.end(tar)
+					return
+				}
+			}
+			if (req.url?.startsWith("/containers/new123/archive?path=%2Fhead-failure.txt")) {
+				if (req.method === "HEAD") {
+					res.statusCode = 400
+					res.setHeader("Content-Type", "application/json")
+					res.end(JSON.stringify({ message: "lstat /head-failure.txt: not a directory" }))
+					return
+				}
+				if (req.method === "GET") {
+					const tar = createTar([{ name: "head-failure.txt", type: "file", content: headFailureFileContent }])
 					res.setHeader("Content-Type", "application/x-tar")
 					res.end(tar)
 					return
@@ -457,5 +472,15 @@ describe("DockerBackend", () => {
 		expect(info.size).toBe(Buffer.byteLength(fallbackFileContent))
 		const decoded = Buffer.from(info.content ?? "", "base64").toString("utf8")
 		expect(decoded).toBe(fallbackFileContent)
+	})
+
+	it("loads file contents when Docker HEAD reports path is not a directory", async () => {
+		const info = await backend.getInstancePath("new123", "/head-failure.txt")
+		expect(info.type).toBe("file")
+		expect(info.path).toBe("/head-failure.txt")
+		expect(info.encoding).toBe("base64")
+		expect(info.size).toBe(Buffer.byteLength(headFailureFileContent))
+		const decoded = Buffer.from(info.content ?? "", "base64").toString("utf8")
+		expect(decoded).toBe(headFailureFileContent)
 	})
 })

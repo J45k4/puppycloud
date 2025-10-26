@@ -217,26 +217,42 @@ export class DockerBackend implements Backend {
 		const queryPath = encodeURIComponent(normalizedPath)
 		const archivePath = `/containers/${encodeURIComponent(id)}/archive?path=${queryPath}`
 
-		const statResponse = await this.request({
-			method: "HEAD",
-			path: archivePath,
-			headers: {
-				Accept: "application/x-tar"
+		let stat: DockerPathStat | undefined
+		try {
+			const statResponse = await this.request({
+				method: "HEAD",
+				path: archivePath,
+				headers: {
+					Accept: "application/x-tar"
+				}
+			})
+			stat = this.decodePathStat(statResponse.headers["x-docker-container-path-stat"])
+			if (!stat) {
+				throw new BackendRequestError("Docker did not return path metadata", 500)
 			}
-		})
+		} catch (error) {
+			if (error instanceof BackendRequestError) {
+				const statusCode = error.statusCode
+				const message = (error.message ?? "").toLowerCase()
+				const details = typeof error.details === "string" ? error.details.toLowerCase() : typeof error.details === "object" && error.details !== null && "message" in error.details ? String((error.details as { message?: unknown }).message ?? "").toLowerCase() : ""
+				const headReportsNotDirectory = /not a directory/.test(message) || /not a directory/.test(details)
+				const isRecoverableHeadError = (typeof statusCode === "number" && statusCode >= 500) || statusCode === 404 || (statusCode === 400 && (headReportsNotDirectory || message === "docker api request failed with status 400"))
 
-		const stat = this.decodePathStat(statResponse.headers["x-docker-container-path-stat"])
-		if (!stat) {
-			throw new BackendRequestError("Docker did not return path metadata", 500)
+				if (!isRecoverableHeadError) {
+					throw error
+				}
+			} else {
+				throw error
+			}
 		}
 
-		const type = this.inferPathType(stat.mode)
+		const type = stat ? this.inferPathType(stat.mode) : "other"
 		const info: BackendPathInfo = {
 			path: normalizedPath,
 			type,
-			size: typeof stat.size === "number" ? stat.size : undefined,
-			modifiedAt: this.normalizeTimestamp(stat.mtime),
-			linkTarget: stat.linkTarget || undefined
+			size: typeof stat?.size === "number" ? stat.size : undefined,
+			modifiedAt: this.normalizeTimestamp(stat?.mtime),
+			linkTarget: stat?.linkTarget || undefined
 		}
 
 		let archiveEntries: TarEntry[] | undefined
@@ -282,11 +298,11 @@ export class DockerBackend implements Backend {
 		}
 
 		const entries = await loadArchiveEntries()
-		const directoryEntries = this.toDirectoryEntries(entries, normalizedPath)
-		const matchingEntry = this.findArchiveEntry(entries, normalizedPath)
-		const mappedMatchingType = matchingEntry ? this.mapEntryType(matchingEntry.type) : undefined
+		                const directoryEntries = this.toDirectoryEntries(entries, normalizedPath)
+		                const matchingEntry = this.findArchiveEntry(entries, normalizedPath)
+		        const mappedMatchingType = matchingEntry ? this.mapEntryType(matchingEntry.type) : undefined
 
-		if (mappedMatchingType === "directory" || directoryEntries.length > 0) {
+        if (mappedMatchingType === "directory" || directoryEntries.length > 0) {
 			info.type = "directory"
 			info.entries = directoryEntries
 			if (matchingEntry) {
@@ -515,17 +531,14 @@ export class DockerBackend implements Backend {
 			let relative: string | undefined
 			if (!baseKey) {
 				relative = entryKey
-			} else {
-				if (entryKey === baseKey) {
-					continue
-				}
-				if (entryKey.startsWith(`${baseKey}/`)) {
-					relative = entryKey.slice(baseKey.length + 1)
-				} else {
-					relative = entryKey
-				}
-			}
-
+			            } else {
+			                if (entryKey === baseKey) {
+			                    continue
+			                }
+			                if (entryKey.startsWith(`${baseKey}/`)) {
+			                    relative = entryKey.slice(baseKey.length + 1)
+			                }
+			            }
 			if (!relative) {
 				continue
 			}
@@ -569,8 +582,7 @@ export class DockerBackend implements Backend {
 			}
 		}
 
-		const sorted = Array.from(map.values()).sort((a, b) => {
-			if (a.type !== b.type) {
+		                const sorted = Array.from(map.values()).sort((a, b) => {			if (a.type !== b.type) {
 				if (a.type === "directory") {
 					return -1
 				}
@@ -600,33 +612,33 @@ export class DockerBackend implements Backend {
 		return undefined
 	}
 
-	private findArchiveEntry(entries: TarEntry[], normalizedPath: string): TarEntry | undefined {
-		const key = this.getArchiveKey(normalizedPath)
-
-		if (!key) {
-			for (const entry of entries) {
-				if (!entry.name) {
-					continue
-				}
-				if (entry.name === "" || entry.name === ".") {
-					return entry
-				}
-			}
-			return undefined
-		}
-
-		for (const entry of entries) {
-			if (!entry.name) {
-				continue
-			}
-			if (entry.name === key) {
-				return entry
-			}
-		}
-
-		return undefined
-	}
-
+	    private findArchiveEntry(entries: TarEntry[], normalizedPath: string): TarEntry | undefined {
+	        const key = this.getArchiveKey(normalizedPath)
+	        const baseName = key.includes("/") ? (key.split("/").pop() ?? key) : key
+	
+	        if (!key) {
+	            for (const entry of entries) {
+	                if (!entry.name) {
+	                    continue
+	                }
+	                if (entry.name === "" || entry.name === ".") {
+	                    return entry
+	                }
+	            }
+	            return undefined
+	        }
+	
+	        for (const entry of entries) {
+	            if (!entry.name) {
+	                continue
+	            }
+	            if (entry.name === key || entry.name === baseName) {
+	                return entry
+	            }
+	        }
+	
+	        return undefined
+	    }
 	private getArchiveKey(normalizedPath: string): string {
 		return normalizedPath === "/" ? "" : normalizedPath.replace(/^\/+/, "")
 	}

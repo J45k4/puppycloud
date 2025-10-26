@@ -750,7 +750,7 @@
             let activeFileBrowserContainerId = null;
             let currentFileBrowserDirectory = "/";
             let currentFileBrowserSelection = null;
-            const MAX_FILE_PREVIEW_BYTES = 262144;
+
 
             resetShellHistory();
             updateShellAvailability(null);
@@ -1250,19 +1250,11 @@
             }
 
             async function openDirectory(path, options = {}) {
-                await openPath(path, { ...options, mode: "directory" });
-            }
-
-            async function openFile(path) {
-                await openPath(path, { mode: "file" });
-            }
-
-            async function openPath(path, options) {
                 if (!activeFileBrowserContainerId) {
                     return;
                 }
                 const normalizedPath = normalizeBrowserPath(path);
-                if (!options?.force && options?.mode === "directory" && normalizedPath === currentFileBrowserDirectory) {
+                if (!options?.force && normalizedPath === currentFileBrowserDirectory) {
                     updateFileBrowserControls(false);
                     return;
                 }
@@ -1281,25 +1273,15 @@
                         throw new Error(message);
                     }
 
-                    if (payload.type === "directory") {
-                        const directoryPath = typeof payload.path === "string" && payload.path.length > 0 ? payload.path : normalizedPath;
-                        currentFileBrowserDirectory = directoryPath;
-                        currentFileBrowserSelection = null;
-                        if (fileBrowserPathElement) {
-                            fileBrowserPathElement.textContent = directoryPath;
-                        }
-                        renderFileBrowserEntries(payload.entries || [], directoryPath);
-                        renderFileBrowserContent(null);
-                        updateFileBrowserStatus(`Loaded ${directoryPath}`, false);
-                    } else if (payload.type === "file") {
-                        const filePath = typeof payload.path === "string" && payload.path.length > 0 ? payload.path : normalizedPath;
-                        currentFileBrowserSelection = filePath;
-                        renderFileBrowserContent(payload);
-                        highlightFileBrowserSelection(filePath);
-                        updateFileBrowserStatus(`Viewing file ${filePath}`, false);
-                    } else {
-                        updateFileBrowserStatus("Path type is not supported.", true);
+                    const directoryPath = typeof payload.path === "string" && payload.path.length > 0 ? payload.path : normalizedPath;
+                    currentFileBrowserDirectory = directoryPath;
+                    currentFileBrowserSelection = null;
+                    if (fileBrowserPathElement) {
+                        fileBrowserPathElement.textContent = directoryPath;
                     }
+                    renderFileBrowserEntries(payload.entries || [], directoryPath);
+                    renderFileBrowserContent(null);
+                    updateFileBrowserStatus(`Loaded ${directoryPath}`, false);
                 } catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
                     updateFileBrowserStatus(message, true);
@@ -1307,6 +1289,40 @@
                     updateFileBrowserControls(false);
                 }
             }
+
+            async function openFile(path) {
+                if (!activeFileBrowserContainerId) {
+                    return;
+                }
+
+                const normalizedPath = normalizeBrowserPath(path);
+                updateFileBrowserStatus(`Loading ${normalizedPath}...`, false);
+                updateFileBrowserControls(true);
+
+                try {
+                    const response = await fetch(`/api/file-content?id=${encodeURIComponent(activeFileBrowserContainerId)}&path=${encodeURIComponent(normalizedPath)}`);
+                    const payload = await response.json();
+
+                    if (!response.ok) {
+                        const message = payload && typeof payload === "object" && typeof payload.error === "string"
+                            ? payload.error
+                            : `Failed to load ${normalizedPath}`;
+                        throw new Error(message);
+                    }
+
+                    currentFileBrowserSelection = normalizedPath;
+                    renderFileBrowserContent(payload);
+                    highlightFileBrowserSelection(normalizedPath);
+                    updateFileBrowserStatus(`Viewing file ${normalizedPath}`, false);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    updateFileBrowserStatus(message, true);
+                } finally {
+                    updateFileBrowserControls(false);
+                }
+            }
+
+
 
             function renderFileBrowserEntries(entries, directoryPath) {
                 if (!fileBrowserEntriesElement || !fileBrowserEmptyElement) {
@@ -1382,19 +1398,8 @@
                 const sizeText = typeof info.size === "number" ? ` (${formatBytes(info.size)})` : "";
                 fileBrowserPreviewHeader.textContent = path ? `Preview of ${path}${sizeText}` : "Preview";
 
-                if (typeof info.content === "string" && info.encoding === "base64") {
-                    if (typeof info.size === "number" && info.size > MAX_FILE_PREVIEW_BYTES) {
-                        fileBrowserPreviewElement.textContent = `File is ${formatBytes(info.size)}. Preview limited to ${formatBytes(MAX_FILE_PREVIEW_BYTES)}.`;
-                        fileBrowserPreviewElement.classList.remove("is-empty");
-                        return;
-                    }
-                    const decoded = decodeBase64ToUtf8(info.content);
-                    if (decoded !== null) {
-                        fileBrowserPreviewElement.textContent = decoded;
-                        fileBrowserPreviewElement.classList.remove("is-empty");
-                        return;
-                    }
-                    fileBrowserPreviewElement.textContent = "Unable to decode file as UTF-8.";
+                if (typeof info.content === "string") {
+                    fileBrowserPreviewElement.textContent = info.content;
                     fileBrowserPreviewElement.classList.remove("is-empty");
                     return;
                 }
@@ -1403,19 +1408,7 @@
                 fileBrowserPreviewElement.classList.remove("is-empty");
             }
 
-            function decodeBase64ToUtf8(value) {
-                try {
-                    const binary = atob(value);
-                    const bytes = new Uint8Array(binary.length);
-                    for (let index = 0; index < binary.length; index += 1) {
-                        bytes[index] = binary.charCodeAt(index);
-                    }
-                    const decoder = new TextDecoder();
-                    return decoder.decode(bytes);
-                } catch {
-                    return null;
-                }
-            }
+
 
             function formatBytes(bytes) {
                 if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) {
@@ -1438,8 +1431,6 @@
                 const targetPath = joinContainerPath(currentFileBrowserDirectory, name);
                 if (type === "directory") {
                     openDirectory(targetPath, { force: true });
-                } else if (type === "symlink") {
-                    openPath(targetPath, { force: true, mode: "auto" });
                 } else {
                     openFile(targetPath);
                 }
@@ -1462,7 +1453,7 @@
                     return "-";
                 }
 
-                return `<strong>${labelEntry[0]}</strong>: ${labelEntry[1]}`;
+                return `${labelEntry[0]}: ${labelEntry[1]}`;
             }
         </script>
 	</body>
