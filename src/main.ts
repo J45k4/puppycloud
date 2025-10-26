@@ -337,7 +337,7 @@ async function handleBrowseContainerPath(req: Request): Promise<Response> {
 	const url = new URL(req.url)
 	const id = url.searchParams.get("id")
 	const path = url.searchParams.get("path") ?? "/"
-	
+
 	console.log(`browse container ${id} at path ${path}`)
 
 	if (!id) {
