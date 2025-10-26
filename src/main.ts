@@ -333,6 +333,47 @@ async function handleExecContainerCommand(req: Request): Promise<Response> {
 	}
 }
 
+async function handleBrowseContainerPath(req: Request): Promise<Response> {
+	const url = new URL(req.url)
+	const id = url.searchParams.get("id")
+	const path = url.searchParams.get("path") ?? "/"
+	
+	console.log(`browse container ${id} at path ${path}`)
+
+	if (!id) {
+		return Response.json({ error: "Container id is required" }, { status: 400 })
+	}
+
+	try {
+		const info = await dockerBackend.getInstancePath(id, path)
+		console.log(`container ${id} at path ${path} info`, info)
+		return Response.json({
+			path: info.path,
+			type: info.type,
+			size: info.size,
+			modifiedAt: info.modifiedAt,
+			linkTarget: info.linkTarget,
+			encoding: info.encoding,
+			content: info.content,
+			entries: info.entries
+		})
+	} catch (error) {
+		console.error("❌ Error browsing container path:", error)
+		if (error instanceof BackendRequestError && error.statusCode === 404) {
+			return Response.json({ error: "Path not found" }, { status: 404 })
+		}
+
+		return Response.json(
+			{
+				error: error instanceof BackendRequestError ? error.message : error instanceof Error ? error.message : "Failed to browse container path"
+			},
+			{
+				status: error instanceof BackendRequestError ? (error.statusCode ?? 500) : 500
+			}
+		)
+	}
+}
+
 Bun.serve({
 	port: 3312,
 	routes: {
@@ -345,6 +386,9 @@ Bun.serve({
 		},
 		"/api/container": {
 			GET: handleGetContainerDetails
+		},
+		"/api/container/files": {
+			GET: handleBrowseContainerPath
 		},
 		"/api/container/exec": {
 			POST: handleExecContainerCommand

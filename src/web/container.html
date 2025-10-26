@@ -280,6 +280,158 @@
                 font-size: 0.95rem;
             }
 
+            .file-browser {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                background-color: rgba(13, 17, 23, 0.85);
+                border: 1px solid rgba(240, 246, 252, 0.08);
+                border-radius: 16px;
+                padding: 24px;
+                box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+            }
+
+            .file-browser-toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .file-browser-actions {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .file-browser-button {
+                padding: 6px 12px;
+                border-radius: 8px;
+                border: 1px solid rgba(56, 139, 253, 0.35);
+                background-color: rgba(56, 139, 253, 0.18);
+                color: #58a6ff;
+                font-size: 0.9rem;
+                cursor: pointer;
+                transition: background-color 150ms ease, border-color 150ms ease;
+            }
+
+            .file-browser-button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+            .file-browser-button:not(:disabled):hover,
+            .file-browser-button:not(:disabled):focus {
+                background-color: rgba(56, 139, 253, 0.28);
+                border-color: rgba(56, 139, 253, 0.5);
+            }
+
+            .file-browser-path {
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+                font-size: 0.95rem;
+                color: rgba(240, 246, 252, 0.8);
+                word-break: break-all;
+            }
+
+            .file-browser-status {
+                font-size: 0.9rem;
+                color: rgba(240, 246, 252, 0.7);
+            }
+
+            .file-browser-status.is-error {
+                color: #f85149;
+            }
+
+            .file-browser-table-wrapper {
+                border-radius: 12px;
+                border: 1px solid rgba(240, 246, 252, 0.08);
+                overflow: hidden;
+                background-color: rgba(13, 17, 23, 0.6);
+            }
+
+            .file-browser-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.95rem;
+            }
+
+            .file-browser-table thead {
+                background-color: rgba(240, 246, 252, 0.05);
+            }
+
+            .file-browser-table th,
+            .file-browser-table td {
+                padding: 10px 12px;
+                text-align: left;
+                border-bottom: 1px solid rgba(240, 246, 252, 0.05);
+            }
+
+            .file-browser-table tbody tr {
+                cursor: pointer;
+                transition: background-color 120ms ease;
+            }
+
+            .file-browser-table tbody tr:hover,
+            .file-browser-table tbody tr:focus {
+                background-color: rgba(56, 139, 253, 0.1);
+            }
+
+            .file-browser-table tbody tr.is-directory td:first-child::before {
+                content: "📁";
+                margin-right: 8px;
+            }
+
+            .file-browser-table tbody tr.is-file td:first-child::before {
+                content: "📄";
+                margin-right: 8px;
+            }
+
+            .file-browser-table tbody tr.is-symlink td:first-child::before {
+                content: "🔗";
+                margin-right: 8px;
+            }
+
+            .file-browser-table tbody tr.is-selected {
+                background-color: rgba(56, 139, 253, 0.18);
+            }
+
+            .file-browser-empty {
+                padding: 18px;
+                text-align: center;
+                font-size: 0.9rem;
+                color: rgba(240, 246, 252, 0.6);
+                display: none;
+            }
+
+            .file-browser-preview {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .file-browser-preview-header {
+                font-size: 0.95rem;
+                color: rgba(240, 246, 252, 0.75);
+            }
+
+            .file-browser-preview-content {
+                max-height: 240px;
+                overflow: auto;
+                padding: 16px;
+                border-radius: 12px;
+                background-color: rgba(240, 246, 252, 0.05);
+                border: 1px solid rgba(240, 246, 252, 0.08);
+                font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+                font-size: 0.9rem;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
+            .file-browser-preview-content.is-empty {
+                color: rgba(240, 246, 252, 0.6);
+            }
+
             .shell-panel {
                 display: grid;
                 gap: 16px;
@@ -515,6 +667,39 @@
 				</div>
 			</section>
 			<section class="detail-section">
+				<h2>File browser</h2>
+				<div class="file-browser">
+					<div class="file-browser-toolbar">
+						<div class="file-browser-actions">
+							<button id="fileBrowserUp" class="file-browser-button" type="button">Go up</button>
+							<button id="fileBrowserRefresh" class="file-browser-button" type="button">Refresh</button>
+						</div>
+						<div class="file-browser-path">
+							<strong>Path:</strong>&nbsp;<span id="fileBrowserPath">/</span>
+						</div>
+					</div>
+					<p id="fileBrowserStatus" class="file-browser-status">Loading…</p>
+					<div class="file-browser-table-wrapper">
+						<table class="file-browser-table">
+							<thead>
+								<tr>
+									<th scope="col">Name</th>
+									<th scope="col">Type</th>
+									<th scope="col">Size</th>
+									<th scope="col">Modified</th>
+								</tr>
+							</thead>
+							<tbody id="fileBrowserEntries"></tbody>
+						</table>
+						<div id="fileBrowserEmpty" class="file-browser-empty">This directory is empty.</div>
+					</div>
+					<div class="file-browser-preview">
+						<div id="fileBrowserPreviewHeader" class="file-browser-preview-header">No file selected.</div>
+						<pre id="fileBrowserPreview" class="file-browser-preview-content is-empty"></pre>
+					</div>
+				</div>
+			</section>
+			<section class="detail-section">
 				<h2>Shell access</h2>
 				<div class="shell-panel">
 					<p id="shellStatus" class="shell-status">Shell commands execute inside the running container.</p>
@@ -551,12 +736,25 @@
             const shellForm = document.getElementById("shellForm");
             const shellCommandInput = document.getElementById("shellCommand");
             const shellSubmitButton = document.getElementById("shellSubmit");
+            const fileBrowserEntriesElement = document.getElementById("fileBrowserEntries");
+            const fileBrowserStatusElement = document.getElementById("fileBrowserStatus");
+            const fileBrowserPathElement = document.getElementById("fileBrowserPath");
+            const fileBrowserEmptyElement = document.getElementById("fileBrowserEmpty");
+            const fileBrowserPreviewElement = document.getElementById("fileBrowserPreview");
+            const fileBrowserPreviewHeader = document.getElementById("fileBrowserPreviewHeader");
+            const fileBrowserUpButton = document.getElementById("fileBrowserUp");
+            const fileBrowserRefreshButton = document.getElementById("fileBrowserRefresh");
             const shellCommandHistory = [];
             let shellHistoryCursor = 0;
             let activeShellContainerId = null;
+            let activeFileBrowserContainerId = null;
+            let currentFileBrowserDirectory = "/";
+            let currentFileBrowserSelection = null;
+            const MAX_FILE_PREVIEW_BYTES = 262144;
 
             resetShellHistory();
             updateShellAvailability(null);
+            resetFileBrowser();
 
             if (shellCommandInput) {
                 shellCommandInput.addEventListener("keydown", (event) => {
@@ -588,6 +786,40 @@
                             });
                         }
                     }
+                });
+            }
+
+            if (fileBrowserUpButton) {
+                fileBrowserUpButton.addEventListener("click", () => {
+                    if (!activeFileBrowserContainerId) {
+                        return;
+                    }
+                    navigateFileBrowserUp();
+                });
+            }
+
+            if (fileBrowserRefreshButton) {
+                fileBrowserRefreshButton.addEventListener("click", () => {
+                    if (!activeFileBrowserContainerId) {
+                        return;
+                    }
+                    openDirectory(currentFileBrowserDirectory, { force: true });
+                });
+            }
+
+            if (fileBrowserEntriesElement) {
+                fileBrowserEntriesElement.addEventListener("click", (event) => {
+                    const target = event.target instanceof HTMLElement ? event.target : null;
+                    if (!target) {
+                        return;
+                    }
+                    const row = target.closest("tr");
+                    if (!row || !row.dataset.name) {
+                        return;
+                    }
+                    const entryName = row.dataset.name;
+                    const entryType = row.dataset.type || "other";
+                    handleFileBrowserEntryClick(entryName, entryType);
                 });
             }
 
@@ -721,6 +953,7 @@
                 const command = Array.isArray(container?.command) ? container.command.join(" ") : container?.command || "-";
 
                 prepareShellForContainer(container?.id || fallbackId);
+                prepareFileBrowserForContainer(container?.id || fallbackId);
                 updateShellAvailability(state);
 
                 document.getElementById("containerName").textContent = `Container ${shortId}`;
@@ -775,6 +1008,8 @@
                 shellHistoryCursor = 0;
                 resetShellHistory();
                 updateShellAvailability(null);
+                activeFileBrowserContainerId = null;
+                resetFileBrowser();
 
                 document.getElementById("containerName").textContent = "Container";
                 document.getElementById("containerDescription").textContent = "Unable to load container details.";
@@ -921,6 +1156,305 @@
                         : "Shell is available only while the container is running.";
                     shellStatusElement.classList.toggle("is-error", !isInteractive);
                 }
+            }
+
+            function resetFileBrowser() {
+                currentFileBrowserDirectory = "/";
+                currentFileBrowserSelection = null;
+                if (fileBrowserEntriesElement) {
+                    fileBrowserEntriesElement.innerHTML = "";
+                }
+                if (fileBrowserEmptyElement) {
+                    fileBrowserEmptyElement.style.display = "none";
+                }
+                if (fileBrowserStatusElement) {
+                    fileBrowserStatusElement.textContent = "Select a directory to view its contents.";
+                    fileBrowserStatusElement.classList.remove("is-error");
+                }
+                if (fileBrowserPathElement) {
+                    fileBrowserPathElement.textContent = "/";
+                }
+                if (fileBrowserPreviewHeader) {
+                    fileBrowserPreviewHeader.textContent = "No file selected.";
+                }
+                if (fileBrowserPreviewElement) {
+                    fileBrowserPreviewElement.textContent = "";
+                    fileBrowserPreviewElement.classList.add("is-empty");
+                }
+                updateFileBrowserControls(false);
+            }
+
+            function prepareFileBrowserForContainer(containerId) {
+                if (!containerId) {
+                    return;
+                }
+
+                if (activeFileBrowserContainerId !== containerId) {
+                    activeFileBrowserContainerId = containerId;
+                    resetFileBrowser();
+                }
+
+                openDirectory(currentFileBrowserDirectory, { force: true });
+            }
+
+            function updateFileBrowserControls(isBusy) {
+                const disabledBase = isBusy || !activeFileBrowserContainerId;
+                const atRoot = currentFileBrowserDirectory === "/";
+                if (fileBrowserUpButton) {
+                    fileBrowserUpButton.disabled = disabledBase || atRoot;
+                }
+                if (fileBrowserRefreshButton) {
+                    fileBrowserRefreshButton.disabled = disabledBase;
+                }
+            }
+
+            function updateFileBrowserStatus(message, isError) {
+                if (!fileBrowserStatusElement) {
+                    return;
+                }
+                fileBrowserStatusElement.textContent = message;
+                fileBrowserStatusElement.classList.toggle("is-error", Boolean(isError));
+            }
+
+            function normalizeBrowserPath(path) {
+                if (typeof path !== "string" || path.length === 0) {
+                    return "/";
+                }
+                const trimmed = path.trim();
+                if (!trimmed || trimmed === ".") {
+                    return "/";
+                }
+                const normalized = trimmed.replace(/[\\]+/g, "/");
+                const segments = [];
+                for (const part of normalized.split("/")) {
+                    if (!part || part === ".") {
+                        continue;
+                    }
+                    if (part === "..") {
+                        segments.pop();
+                    } else {
+                        segments.push(part);
+                    }
+                }
+                const joined = segments.join("/");
+                return `/${joined}`.replace(/\/+$/, "") || "/";
+            }
+
+            function joinContainerPath(base, segment) {
+                const normalizedBase = normalizeBrowserPath(base);
+                const cleanSegment = segment.replace(/^\/+/, "");
+                if (normalizedBase === "/") {
+                    return `/${cleanSegment}`.replace(/\/+$/, "");
+                }
+                return `${normalizedBase.replace(/\/+$/, "")}/${cleanSegment}`;
+            }
+
+            async function openDirectory(path, options = {}) {
+                await openPath(path, { ...options, mode: "directory" });
+            }
+
+            async function openFile(path) {
+                await openPath(path, { mode: "file" });
+            }
+
+            async function openPath(path, options) {
+                if (!activeFileBrowserContainerId) {
+                    return;
+                }
+                const normalizedPath = normalizeBrowserPath(path);
+                if (!options?.force && options?.mode === "directory" && normalizedPath === currentFileBrowserDirectory) {
+                    updateFileBrowserControls(false);
+                    return;
+                }
+
+                updateFileBrowserStatus("Loading…", false);
+                updateFileBrowserControls(true);
+
+                try {
+                    const response = await fetch(`/api/container/files?id=${encodeURIComponent(activeFileBrowserContainerId)}&path=${encodeURIComponent(normalizedPath)}`);
+                    const payload = await response.json();
+
+                    if (!response.ok) {
+                        const message = payload && typeof payload === "object" && typeof payload.error === "string"
+                            ? payload.error
+                            : `Failed to load ${normalizedPath}`;
+                        throw new Error(message);
+                    }
+
+                    if (payload.type === "directory") {
+                        const directoryPath = typeof payload.path === "string" && payload.path.length > 0 ? payload.path : normalizedPath;
+                        currentFileBrowserDirectory = directoryPath;
+                        currentFileBrowserSelection = null;
+                        if (fileBrowserPathElement) {
+                            fileBrowserPathElement.textContent = directoryPath;
+                        }
+                        renderFileBrowserEntries(payload.entries || [], directoryPath);
+                        renderFileBrowserContent(null);
+                        updateFileBrowserStatus(`Loaded ${directoryPath}`, false);
+                    } else if (payload.type === "file") {
+                        const filePath = typeof payload.path === "string" && payload.path.length > 0 ? payload.path : normalizedPath;
+                        currentFileBrowserSelection = filePath;
+                        renderFileBrowserContent(payload);
+                        highlightFileBrowserSelection(filePath);
+                        updateFileBrowserStatus(`Viewing file ${filePath}`, false);
+                    } else {
+                        updateFileBrowserStatus("Path type is not supported.", true);
+                    }
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    updateFileBrowserStatus(message, true);
+                } finally {
+                    updateFileBrowserControls(false);
+                }
+            }
+
+            function renderFileBrowserEntries(entries, directoryPath) {
+                if (!fileBrowserEntriesElement || !fileBrowserEmptyElement) {
+                    return;
+                }
+
+                fileBrowserEntriesElement.innerHTML = "";
+
+                if (!entries || entries.length === 0) {
+                    fileBrowserEmptyElement.style.display = "block";
+                    return;
+                }
+
+                fileBrowserEmptyElement.style.display = "none";
+
+                const fragment = document.createDocumentFragment();
+                for (const entry of entries) {
+                    if (!entry || typeof entry.name !== "string") {
+                        continue;
+                    }
+                    const row = document.createElement("tr");
+                    row.dataset.name = entry.name;
+                    row.dataset.type = entry.type || "other";
+                    const fullPath = joinContainerPath(directoryPath, entry.name);
+                    row.dataset.path = fullPath;
+                    row.classList.add(`is-${entry.type || "other"}`);
+                    if (currentFileBrowserSelection === fullPath) {
+                        row.classList.add("is-selected");
+                    }
+
+                    const typeLabel = entry.type ? entry.type.charAt(0).toUpperCase() + entry.type.slice(1) : "Unknown";
+                    const sizeLabel = typeof entry.size === "number" ? formatBytes(entry.size) : "—";
+                    const modifiedLabel = typeof entry.modifiedAt === "string" && entry.modifiedAt.length > 0
+                        ? formatDate(entry.modifiedAt)
+                        : "—";
+
+                    const cells = [entry.name, typeLabel, sizeLabel, modifiedLabel];
+                    for (const cellContent of cells) {
+                        const cell = document.createElement("td");
+                        cell.textContent = cellContent;
+                        row.appendChild(cell);
+                    }
+
+                    fragment.appendChild(row);
+                }
+
+                fileBrowserEntriesElement.appendChild(fragment);
+            }
+
+            function highlightFileBrowserSelection(selectedPath) {
+                if (!fileBrowserEntriesElement) {
+                    return;
+                }
+                const rows = fileBrowserEntriesElement.querySelectorAll("tr");
+                rows.forEach((row) => {
+                    row.classList.toggle("is-selected", row.dataset.path === selectedPath);
+                });
+            }
+
+            function renderFileBrowserContent(info) {
+                if (!fileBrowserPreviewElement || !fileBrowserPreviewHeader) {
+                    return;
+                }
+
+                if (!info || typeof info !== "object") {
+                    fileBrowserPreviewHeader.textContent = "No file selected.";
+                    fileBrowserPreviewElement.textContent = "";
+                    fileBrowserPreviewElement.classList.add("is-empty");
+                    return;
+                }
+
+                const path = typeof info.path === "string" && info.path.length > 0 ? info.path : currentFileBrowserSelection;
+                const sizeText = typeof info.size === "number" ? ` (${formatBytes(info.size)})` : "";
+                fileBrowserPreviewHeader.textContent = path ? `Preview of ${path}${sizeText}` : "Preview";
+
+                if (typeof info.content === "string" && info.encoding === "base64") {
+                    if (typeof info.size === "number" && info.size > MAX_FILE_PREVIEW_BYTES) {
+                        fileBrowserPreviewElement.textContent = `File is ${formatBytes(info.size)}. Preview limited to ${formatBytes(MAX_FILE_PREVIEW_BYTES)}.`;
+                        fileBrowserPreviewElement.classList.remove("is-empty");
+                        return;
+                    }
+                    const decoded = decodeBase64ToUtf8(info.content);
+                    if (decoded !== null) {
+                        fileBrowserPreviewElement.textContent = decoded;
+                        fileBrowserPreviewElement.classList.remove("is-empty");
+                        return;
+                    }
+                    fileBrowserPreviewElement.textContent = "Unable to decode file as UTF-8.";
+                    fileBrowserPreviewElement.classList.remove("is-empty");
+                    return;
+                }
+
+                fileBrowserPreviewElement.textContent = "File content is unavailable.";
+                fileBrowserPreviewElement.classList.remove("is-empty");
+            }
+
+            function decodeBase64ToUtf8(value) {
+                try {
+                    const binary = atob(value);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let index = 0; index < binary.length; index += 1) {
+                        bytes[index] = binary.charCodeAt(index);
+                    }
+                    const decoder = new TextDecoder();
+                    return decoder.decode(bytes);
+                } catch {
+                    return null;
+                }
+            }
+
+            function formatBytes(bytes) {
+                if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) {
+                    return "—";
+                }
+                const units = ["B", "KB", "MB", "GB", "TB"];
+                let value = bytes;
+                let unitIndex = 0;
+                while (value >= 1024 && unitIndex < units.length - 1) {
+                    value /= 1024;
+                    unitIndex += 1;
+                }
+                return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+            }
+
+            function handleFileBrowserEntryClick(name, type) {
+                if (!activeFileBrowserContainerId) {
+                    return;
+                }
+                const targetPath = joinContainerPath(currentFileBrowserDirectory, name);
+                if (type === "directory") {
+                    openDirectory(targetPath, { force: true });
+                } else if (type === "symlink") {
+                    openPath(targetPath, { force: true, mode: "auto" });
+                } else {
+                    openFile(targetPath);
+                }
+            }
+
+            function navigateFileBrowserUp() {
+                const current = currentFileBrowserDirectory;
+                if (current === "/") {
+                    openDirectory("/", { force: true });
+                    return;
+                }
+                const segments = current.split("/").filter((segment) => segment.length > 0);
+                segments.pop();
+                const parent = segments.length === 0 ? "/" : `/${segments.join("/")}`;
+                openDirectory(parent, { force: true });
             }
 
             function formatLabel(labelEntry) {

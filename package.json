@@ -4,6 +4,8 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
+		"dev": "bun --watch src/main.ts",
+		"start": "bun src/main.ts",
 		"lint": "bunx biome lint .",
 		"lint-fix": "bunx biome lint . --write",
 		"format": "bunx biome format .",

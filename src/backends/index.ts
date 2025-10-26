@@ -1,6 +1,9 @@
 export type {
 	Backend,
 	BackendCreateOptions,
+	BackendFileEntry,
+	BackendPathInfo,
+	BackendPathType,
 	BackendExecOptions,
 	BackendExecResult,
 	BackendInstanceInfo,

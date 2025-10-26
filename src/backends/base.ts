@@ -48,6 +48,27 @@ export interface BackendExecResult {
 	output: string
 }
 
+export type BackendPathType = "file" | "directory" | "symlink" | "other"
+
+export interface BackendFileEntry {
+	name: string
+	type: BackendPathType
+	size?: number
+	modifiedAt?: string
+	linkTarget?: string
+}
+
+export interface BackendPathInfo {
+	path: string
+	type: BackendPathType
+	size?: number
+	modifiedAt?: string
+	linkTarget?: string
+	encoding?: "base64"
+	content?: string
+	entries?: BackendFileEntry[]
+}
+
 export interface Backend {
 	listInstances(options?: BackendListOptions): Promise<BackendInstanceInfo[]>
 	createInstance(options: BackendCreateOptions): Promise<BackendInstanceInfo>
@@ -57,4 +78,5 @@ export interface Backend {
 	inspectInstance(id: string): Promise<Record<string, unknown>>
 	getInstanceLogs(id: string, options?: BackendLogOptions): Promise<string>
 	execInstanceCommand(id: string, command: string[], options?: BackendExecOptions): Promise<BackendExecResult>
+	getInstancePath(id: string, path: string): Promise<BackendPathInfo>
 }
