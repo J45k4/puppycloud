@@ -217,26 +217,36 @@ export class DockerBackend implements Backend {
 		const queryPath = encodeURIComponent(normalizedPath)
 		const archivePath = `/containers/${encodeURIComponent(id)}/archive?path=${queryPath}`
 
-		const statResponse = await this.request({
-			method: "HEAD",
-			path: archivePath,
-			headers: {
-				Accept: "application/x-tar"
+		let stat: DockerPathStat | undefined
+		try {
+			const statResponse = await this.request({
+				method: "HEAD",
+				path: archivePath,
+				headers: {
+					Accept: "application/x-tar"
+				}
+			})
+			stat = this.decodePathStat(statResponse.headers["x-docker-container-path-stat"])
+			if (!stat) {
+				throw new BackendRequestError("Docker did not return path metadata", 500)
 			}
-		})
-
-		const stat = this.decodePathStat(statResponse.headers["x-docker-container-path-stat"])
-		if (!stat) {
-			throw new BackendRequestError("Docker did not return path metadata", 500)
+		} catch (error) {
+			if (error instanceof BackendRequestError) {
+				if (typeof error.statusCode === "number" && error.statusCode < 500) {
+					throw error
+				}
+			} else {
+				throw error
+			}
 		}
 
-		const type = this.inferPathType(stat.mode)
+		const type = stat ? this.inferPathType(stat.mode) : "other"
 		const info: BackendPathInfo = {
 			path: normalizedPath,
 			type,
-			size: typeof stat.size === "number" ? stat.size : undefined,
-			modifiedAt: this.normalizeTimestamp(stat.mtime),
-			linkTarget: stat.linkTarget || undefined
+			size: typeof stat?.size === "number" ? stat.size : undefined,
+			modifiedAt: this.normalizeTimestamp(stat?.mtime),
+			linkTarget: stat?.linkTarget || undefined
 		}
 
 		let archiveEntries: TarEntry[] | undefined
