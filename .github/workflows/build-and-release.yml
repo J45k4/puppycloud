@@ -13,8 +13,19 @@ permissions:
 
 jobs:
     build:
-        runs-on: ubuntu-latest
-
+        strategy:
+            matrix:
+                include:
+                    - os: ubuntu-latest
+                      target: bun-linux-x64
+                      binary-name: puppycloud-linux
+                    - os: macos-latest
+                      target: bun-darwin-x64
+                      binary-name: puppycloud-macos
+                    - os: windows-latest
+                      target: bun-windows-x64
+                      binary-name: puppycloud-windows.exe
+        runs-on: ${{ matrix.os }}
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
@@ -28,17 +39,34 @@ jobs:
               run: bun install
 
             - name: Build binary
-              run: bun run build
+              run: bun build src/main.ts --compile --outfile ${{ matrix.binary-name }} --target ${{ matrix.target }}
 
             - name: Upload artifact
               if: startsWith(github.ref, 'refs/tags/')
               uses: actions/upload-artifact@v4
               with:
-                  name: puppycloud-binary
-                  path: puppycloud
+                  name: ${{ matrix.binary-name }}
+                  path: ${{ matrix.binary-name }}
+
+    release:
+        if: startsWith(github.ref, 'refs/tags/')
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Download artifacts
+              uses: actions/download-artifact@v4
+              with:
+                path: artifacts
+
+            - name: List files
+              run: ls -R artifacts
 
             - name: Create GitHub Release
-              if: startsWith(github.ref, 'refs/tags/')
               uses: softprops/action-gh-release@v1
               with:
-                  files: puppycloud
+                  files: |
+                      artifacts/puppycloud-linux/puppycloud-linux
+                      artifacts/puppycloud-macos/puppycloud-macos
+                      artifacts/puppycloud-windows.exe/puppycloud-windows.exe
